@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { SlackAdapter, SlackPost, SlackUser } from '../../types.ts';
+import type { SlackAdapter, SlackButton, SlackPost, SlackUser } from '../../types.ts';
 
 // MOCK Slack workspace. Posts, the member directory and channel membership live in
 // mock_ tables so the status page can show the "Slack" side of the conversation.
@@ -31,8 +31,20 @@ export class MockSlackAdapter implements SlackAdapter {
     const ts = `${Math.floor(Date.now() / 1000)}.${String(this.count() + 1).padStart(6, '0')}`;
     this.db
       .prepare('INSERT INTO mock_slack_posts (idempotency_key, channel, text, buttons, ts) VALUES (?, ?, ?, ?, ?)')
-      .run(message.idempotencyKey, message.channel, message.text, message.buttons ? JSON.stringify(message.buttons) : null, ts);
+      .run(message.idempotencyKey, message.channel, message.text, message.buttons || message.rows ? JSON.stringify([...(message.buttons ?? []), ...(message.rows ?? []).flatMap((r) => r.buttons)]) : null, ts);
     return { ts };
+  }
+
+  async update(channel: string, ts: string, text: string, buttons?: SlackButton[]): Promise<void> {
+    this.db
+      .prepare('UPDATE mock_slack_posts SET text = ?, buttons = ? WHERE channel = ? AND ts = ?')
+      .run(text, buttons?.length ? JSON.stringify(buttons) : null, channel, ts);
+  }
+
+  /** Mock "Slack file URLs" are local paths (file://...). */
+  async downloadFile(url: string): Promise<Buffer> {
+    const { readFileSync } = await import('node:fs');
+    return readFileSync(new URL(url));
   }
 
   async lookupUserByEmail(email: string): Promise<SlackUser | null> {

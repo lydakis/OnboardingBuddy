@@ -70,6 +70,7 @@ function overview(app: App): string {
     'Onboarding cases',
     `<div class="card"><h2>Cases</h2><table><tr><th>case</th><th>worker</th><th>status</th><th>intake</th><th>needs attention</th></tr>${rows}</table></div>
 <div class="card"><h2>Sends needing verification</h2>${table(uncertain, ['action_key', 'case_id', 'kind', 'error'])}</div>
+<div class="card"><h2>Sandboxed agent runs (NemoClaw/OpenShell)</h2>${table(agentRunRows(app), ['created_at', 'purpose', 'case_id', 'mode', 'model', 'tool_calls', 'duration_ms', 'fallback_used', 'outcome', 'warnings'])}</div>
 <div class="card"><h2>Unmatched / quarantined inbound email</h2>${table(app.store.unmatchedMessages(), ['created_at', 'from_addr', 'subject', 'correlation'])}</div>`,
     app,
   );
@@ -98,6 +99,14 @@ ${sections}
 <div class="card"><h2>Audit trail</h2>${table(app.store.auditTrail(id), ['at', 'actor', 'type', 'detail'])}</div>`,
     app,
   );
+}
+
+function agentRunRows(app: App): Row[] {
+  try {
+    return app.store.db.prepare('SELECT * FROM agent_runs ORDER BY created_at DESC LIMIT 15').all() as Row[];
+  } catch {
+    return [];
+  }
 }
 
 /** Later phases add case-page sections (plan, invitation, training) here. */

@@ -69,6 +69,10 @@ export class MockEmailAdapter implements EmailAdapter {
     this.db.prepare('UPDATE mock_email_inbox SET acknowledged = 1 WHERE provider_message_id = ?').run(providerMessageId);
   }
 
+  async requeue(providerMessageId: string): Promise<void> {
+    this.db.prepare('UPDATE mock_email_inbox SET acknowledged = 0 WHERE provider_message_id = ?').run(providerMessageId);
+  }
+
   // ---- simulation helpers (demo + tests) ----
 
   /** Queue an inbound message, as if a worker replied. Re-delivery of the same id is allowed on purpose. */

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { command, makeApp } from './helpers.ts';
-import { runPhase1 } from '../src/demo/scenario.ts';
+import { runPhase1, runPhase2 } from '../src/demo/scenario.ts';
 import { PlanNotApprovedError, approvePlan, latestPlan, planContent, proposePlan, sendApprovedPlan } from '../src/engine/plan.ts';
 import { validateExtraction } from '../src/engine/extract.ts';
 import { loadPolicy } from '../src/engine/policy.ts';
@@ -12,6 +12,7 @@ const quiet = () => {};
 async function intakeDone() {
   const app = await makeApp();
   await runPhase1(app, quiet);
+  await runPhase2(app, quiet); // join Slack + questionnaire answers
   return app;
 }
 
@@ -96,6 +97,7 @@ test('model output is validated: invented excerpts, bad values and broken JSON a
 test('a failed or garbled model call routes the plan to review instead of guessing', async () => {
   const app = await intakeDone();
   app.adapters.llm = new MockLlm(() => 'I cannot help with that.');
+  app.store.db.prepare(`DELETE FROM extractions WHERE case_id = 'FW-001'`).run(); // force a fresh read of the CV
   const row = await proposePlan(app, app.store.getCase('FW-001')!, 'U_MGR_DANA');
   assert.equal(row.status, 'needs_review');
   assert.ok(planContent(row).reviewItems.some((r) => r.id === 'extraction-failed'));

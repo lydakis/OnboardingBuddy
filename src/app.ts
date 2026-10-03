@@ -9,6 +9,8 @@ import { MockInviteAdapter } from './adapters/invite/mock.ts';
 import { ManualInviteAdapter } from './adapters/invite/manual.ts';
 import { SlackAdminInviteAdapter } from './adapters/invite/slack-admin.ts';
 import { heuristicResponder } from './engine/extract.ts';
+import { MockSandboxAgent } from './adapters/sandbox/mock.ts';
+import type { SandboxAgent } from './adapters/sandbox/types.ts';
 import type { EmailAdapter, InviteAdapter, LlmAdapter, SlackAdapter } from './types.ts';
 import './engine/register.ts';
 
@@ -51,5 +53,12 @@ export async function createApp(config: Config): Promise<App> {
   else if (config.invite.mode === 'manual') invite = new ManualInviteAdapter();
   else invite = new SlackAdminInviteAdapter(config.invite.adminUserToken!, config.invite.teamId!);
 
-  return { store, config, adapters: { email, slack, llm, invite }, mocks, close: () => db.close() };
+  let sandbox: SandboxAgent | undefined;
+  if (config.sandbox.mode === 'mock') sandbox = new MockSandboxAgent();
+  else if (config.sandbox.mode === 'nemoclaw') {
+    const { NemoClawSandboxAgent } = await import('./adapters/sandbox/nemoclaw.ts');
+    sandbox = new NemoClawSandboxAgent({ sandbox: config.llm.nemoclawSandbox, timeoutMs: config.llm.timeoutMs });
+  }
+
+  return { store, config, adapters: { email, slack, llm, invite, sandbox }, mocks, close: () => db.close() };
 }

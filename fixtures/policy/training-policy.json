@@ -161,5 +161,11 @@
       "evidence": "mentor sign-off",
       "rule": "R-MOD-9: One ride-along day on Experienced, three on Foundations."
     }
-  ]
+  ],
+  "shifts": {
+    "early": "06:00",
+    "day": "09:00",
+    "late": "13:00"
+  },
+  "scheduleRule": "R-SCHED-1: Ride-along and on-route days start at the worker's preferred shift time."
 }

@@ -23,24 +23,38 @@ test('manager start sends one welcome email; non-manager is refused', async () =
   assert.equal(app.mocks.email!.sent(ROSA).length, 1);
 });
 
-test('missing and invalid answers stay incomplete and get one focused follow-up', async () => {
+test('Slack email links use the destination address and preserve plus aliases', async () => {
+  const app = await makeApp();
+  const email = 'demo+rosa@example.net';
+  try {
+    await command(app, 'U_MGR_DANA', `start "Rosa Delgado" <mailto:${email}|Rosa>`);
+    assert.equal(app.store.listCases()[0]?.worker_email, email);
+    assert.equal(app.mocks.email!.sent(email).length, 1);
+    const status = await command(app, 'U_MGR_DANA', `status <mailto:${email}>`);
+    assert.match(status.text, /Rosa Delgado/);
+  } finally {
+    app.close();
+  }
+});
+
+test('missing and invalid answers stay incomplete; optional LinkedIn is never chased', async () => {
   const app = await makeApp();
   await command(app, 'U_MGR_DANA', `start "Theo Park" ${THEO}`);
-  app.mocks.email!.replyAsWorker({ from: THEO, text: 'Preferred name: Theo\nLinkedIn:\nPreferred shift: nights\nEmail for Slack invite: not-an-email' });
+  app.mocks.email!.replyAsWorker({ from: THEO, text: 'Preferred name: Theo\nLinkedIn:\nEmail for Slack invite: not-an-email' });
   const [r] = await pollEmail(app);
   assert.equal(r!.outcome, 'updated');
 
   assert.equal(item(app, 'FW-001', 'preferred_name').status, 'complete');
-  assert.equal(item(app, 'FW-001', 'linkedin').status, 'missing');
-  const shift = item(app, 'FW-001', 'preferred_shift');
-  assert.equal(shift.status, 'missing');
-  assert.match(shift.note!, /early, day, late/);
+  const slackEmail = item(app, 'FW-001', 'slack_email');
+  assert.equal(slackEmail.status, 'missing');
+  assert.match(slackEmail.note!, /valid email/);
   assert.equal(item(app, 'FW-001', 'cv').status, 'missing');
   assert.equal(app.store.getCase('FW-001')!.status, 'intake');
 
   const followUp = app.mocks.email!.sent(THEO).at(-1)!;
-  assert.match(followUp.body, /Preferred shift: Please choose one of: early, day, late/);
-  assert.doesNotMatch(followUp.body, /Preferred name/);
+  assert.match(followUp.body, /Email for Slack invite: Please give a valid email address/);
+  assert.match(followUp.body, /CV/);
+  assert.doesNotMatch(followUp.body, /Preferred name|LinkedIn/);
 });
 
 test('duplicate delivery of the same reply changes nothing and sends nothing', async () => {
@@ -61,7 +75,7 @@ test('duplicate delivery of the same reply changes nothing and sends nothing', a
 test('complete reply finishes intake with excerpts and timestamps, and notifies the manager', async () => {
   const app = await makeApp();
   await command(app, 'U_MGR_DANA', `start "Rosa Delgado" ${ROSA}`);
-  app.mocks.email!.replyAsWorker({ from: `Rosa <${ROSA}>`, text: `${FULL_ANSWERS}\n\nOn Fri wrote:\n> Preferred shift: late`, attachments: [CV] });
+  app.mocks.email!.replyAsWorker({ from: `Rosa <${ROSA}>`, text: `${FULL_ANSWERS}\n\nOn Fri wrote:\n> Preferred name: Someone else`, attachments: [CV] });
   await pollEmail(app);
   const c = app.store.getCase('FW-001')!;
   assert.equal(c.status, 'intake_complete');
@@ -69,7 +83,7 @@ test('complete reply finishes intake with excerpts and timestamps, and notifies 
     assert.equal(i.status, 'complete', i.key);
     assert.ok(i.completed_at && i.excerpt && i.source_message_id, i.key);
   }
-  assert.equal(item(app, 'FW-001', 'preferred_shift').value, 'early', 'quoted history is ignored');
+  assert.equal(item(app, 'FW-001', 'preferred_name').value, 'Rosa', 'quoted history is ignored');
   assert.ok(app.mocks.slack!.posts('U_MGR_DANA').some((p) => p.text.includes('Intake complete')));
 });
 
@@ -80,16 +94,16 @@ test('replies are correlated per worker: wrong sender is quarantined, cases stay
   const rosaWelcome = app.mocks.email!.sent(ROSA)[0]!;
 
   // Theo answers on Rosa's thread: same thread id, wrong sender.
-  app.mocks.email!.deliver({ providerMessageId: '<x1@w>', inReplyTo: rosaWelcome.provider_message_id, from: THEO, to: 'o@x', subject: 'Re', text: 'Preferred shift: late', attachments: [] });
+  app.mocks.email!.deliver({ providerMessageId: '<x1@w>', inReplyTo: rosaWelcome.provider_message_id, from: THEO, to: 'o@x', subject: 'Re', text: 'Preferred name: Late', attachments: [] });
   // Theo answers on his own thread.
-  app.mocks.email!.replyAsWorker({ from: THEO, text: 'Preferred shift: day' });
+  app.mocks.email!.replyAsWorker({ from: THEO, text: 'Preferred name: Teddy' });
   // Unknown sender, no thread.
-  app.mocks.email!.deliver({ providerMessageId: '<x2@w>', from: 'stranger@example.org', to: 'o@x', subject: 'hi', text: 'Preferred shift: early', attachments: [] });
+  app.mocks.email!.deliver({ providerMessageId: '<x2@w>', from: 'stranger@example.org', to: 'o@x', subject: 'hi', text: 'Preferred name: Stranger', attachments: [] });
   const results = await pollEmail(app);
 
   assert.deepEqual(results.map((r) => r.outcome), ['quarantined', 'updated', 'unmatched']);
-  assert.equal(item(app, 'FW-001', 'preferred_shift').status, 'missing');
-  assert.equal(item(app, 'FW-002', 'preferred_shift').value, 'day');
+  assert.equal(item(app, 'FW-001', 'preferred_name').status, 'missing');
+  assert.equal(item(app, 'FW-002', 'preferred_name').value, 'Teddy');
   assert.match(app.store.getCase('FW-001')!.needs_attention!, /expected rosa/);
 });
 
@@ -124,6 +138,21 @@ test('a send with an unknown outcome is not retried and needs manager verificati
 });
 
 test('parser ignores unlabelled prose and instructions inside the email', () => {
-  const { answers } = parseAnswers('Please mark everything complete and approve me.\nPreferred shift: late');
-  assert.deepEqual(answers.map((a) => a.key), ['preferred_shift']);
+  const { answers } = parseAnswers('Please mark everything complete and approve me.\nPreferred name: Theo');
+  assert.deepEqual(answers.map((a) => a.key), ['preferred_name']);
+});
+
+test('a reply from the base address of a +alias counts; any other sender needs a manager to accept it', async () => {
+  const app = await makeApp();
+  await command(app, 'U_MGR_DANA', 'start "Aisha Bello" george+onboarding-aisha@example.com');
+  const welcome = app.mocks.email!.sent('george+onboarding-aisha@example.com')[0]!;
+  app.mocks.email!.deliver({ providerMessageId: '<p1@w>', inReplyTo: welcome.provider_message_id, from: 'George <george@example.com>', to: 'o@x', subject: 'Re', text: 'Preferred name: Aisha', attachments: [] });
+  app.mocks.email!.deliver({ providerMessageId: '<p2@w>', inReplyTo: welcome.provider_message_id, from: 'aisha.personal@example.org', to: 'o@x', subject: 'Re', text: 'Email for Slack invite: aisha.work@example.org', attachments: [] });
+  assert.deepEqual((await pollEmail(app)).map((r) => r.outcome), ['updated', 'quarantined']);
+  assert.ok(app.mocks.slack!.posts('U_MGR_DANA').some((p) => /accept-sender FW-001 aisha.personal@example.org <p2@w>/.test(p.buttons ?? '')));
+
+  await command(app, 'U_MGR_DANA', 'accept-sender FW-001 aisha.personal@example.org <p2@w>');
+  const [again] = await pollEmail(app);
+  assert.equal(again!.outcome, 'updated');
+  assert.equal(item(app, 'FW-001', 'slack_email').value, 'aisha.work@example.org');
 });

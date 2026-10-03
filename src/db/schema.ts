@@ -151,6 +151,69 @@ CREATE TABLE IF NOT EXISTS training_tasks (
   UNIQUE (case_id, module_id)
 );
 
+CREATE TABLE IF NOT EXISTS agent_runs (
+  id TEXT PRIMARY KEY,
+  case_id TEXT,
+  purpose TEXT NOT NULL,
+  session_key TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  model TEXT NOT NULL,
+  tools TEXT NOT NULL,
+  tool_calls INTEGER NOT NULL,
+  tool_failures INTEGER NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  fallback_used INTEGER NOT NULL,
+  warnings TEXT,
+  outcome TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS rosters (
+  id TEXT PRIMARY KEY,
+  manager_slack_id TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  table_text TEXT NOT NULL,
+  people_json TEXT,
+  review_json TEXT,
+  status TEXT NOT NULL CHECK (status IN ('extracted','failed','started','cancelled')),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS case_senders (
+  case_id TEXT NOT NULL REFERENCES cases(id),
+  address TEXT NOT NULL,
+  approved_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (case_id, address)
+);
+
+CREATE TABLE IF NOT EXISTS questionnaire_items (
+  case_id TEXT NOT NULL REFERENCES cases(id),
+  seq INTEGER NOT NULL,
+  field TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('confirm','number_text','enum','ratings','text')),
+  prompt TEXT NOT NULL,
+  options_json TEXT,
+  status TEXT NOT NULL CHECK (status IN ('pending','asked','answered')),
+  answer_raw TEXT,
+  answer_value_json TEXT,
+  excerpt TEXT,
+  nudges INTEGER NOT NULL DEFAULT 0,
+  answered_at TEXT,
+  slack_ts TEXT,
+  PRIMARY KEY (case_id, seq)
+);
+
+CREATE TABLE IF NOT EXISTS feature_snapshots (
+  case_id TEXT NOT NULL REFERENCES cases(id),
+  version INTEGER NOT NULL,
+  policy_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (case_id, version)
+);
+
 CREATE TABLE IF NOT EXISTS audit_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   case_id TEXT,

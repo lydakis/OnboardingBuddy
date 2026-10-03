@@ -1,7 +1,7 @@
 import type { Config } from '../config.ts';
 import type { Store } from '../db/store.ts';
 import { DefiniteSendFailure } from '../types.ts';
-import type { Adapters, OutboxRow, SlackButton } from '../types.ts';
+import type { Adapters, OutboxRow, SlackButton, SlackButtonRow } from '../types.ts';
 
 export interface EngineContext {
   store: Store;
@@ -90,13 +90,13 @@ export async function sendEmail(
 
 export async function postSlack(
   ctx: EngineContext,
-  input: { actionKey: string; caseId: string | null; kind: string; channel: string; text: string; buttons?: SlackButton[] },
+  input: { actionKey: string; caseId: string | null; kind: string; channel: string; text: string; buttons?: SlackButton[]; rows?: SlackButtonRow[] },
 ): Promise<SendResult> {
   return sendOnce(
     ctx,
     { actionKey: input.actionKey, caseId: input.caseId, channel: 'slack', kind: input.kind, recipient: input.channel, summary: input.text.split('\n')[0]!.slice(0, 120) },
     async () => {
-      const r = await ctx.adapters.slack.post({ channel: input.channel, text: input.text, buttons: input.buttons, idempotencyKey: input.actionKey });
+      const r = await ctx.adapters.slack.post({ channel: input.channel, text: input.text, buttons: input.buttons, rows: input.rows, idempotencyKey: input.actionKey });
       return { providerMessageId: r.ts, threadId: null };
     },
   );

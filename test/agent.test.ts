@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeApp } from './helpers.ts';
 import { runPhase1, runPhase2, runPhase3 } from '../src/demo/scenario.ts';
-import { handleAgentMessage, parseAgentOutput } from '../src/engine/agent.ts';
+import { handleAgentMessage, parseAgentOutput, toSlackMrkdwn } from '../src/engine/agent.ts';
 import { MockLlm } from '../src/adapters/llm/mock.ts';
 
 const quiet = () => {};
@@ -29,6 +29,7 @@ test('manager chat suggests a validated command as a button but runs nothing', a
   const app = await makeApp();
   await runPhase1(app, quiet);
   const statusBefore = app.store.getCase('FW-001')!.status;
+  app.adapters.sandbox = undefined; // exercise the plain-model path
   app.adapters.llm = new MockLlm(() => JSON.stringify({ reply: 'Rosa is ready.', suggested_command: 'plan FW-001' }));
   await handleAgentMessage(app, { eventId: 'm2', userId: 'U_MGR_DANA', channel: 'D_DANA', text: 'is Rosa ready for a plan?' });
   const post = app.mocks.slack!.posts('D_DANA').at(-1)!;
@@ -43,4 +44,16 @@ test('unknown Slack users get no case data', async () => {
   await runPhase1(app, quiet);
   const reply = await handleAgentMessage(app, { eventId: 'm3', userId: 'U_STRANGER', channel: 'D_S', text: 'status of Theo?' });
   assert.doesNotMatch(reply, /Theo|FW-/);
+});
+
+test('chat replies replace their placeholder in place and use Slack formatting', async () => {
+  const app = await makeApp();
+  await runPhase1(app, quiet);
+  app.adapters.sandbox = undefined;
+  app.adapters.llm = new MockLlm(() => JSON.stringify({ reply: '### Status\n**Rosa** is ready.\n- see [plan](https://example.net/p)', suggested_command: null }));
+  await handleAgentMessage(app, { eventId: 'f1', userId: 'U_MGR_DANA', channel: 'D_F', text: 'how is Rosa?' });
+  const posts = app.mocks.slack!.posts('D_F');
+  assert.equal(posts.length, 1, 'placeholder was updated, not duplicated');
+  assert.match(posts[0]!.text, /^\*Status\*\n\*Rosa\* is ready\.\n• see <https:\/\/example\.net\/p\|plan>/);
+  assert.equal(toSlackMrkdwn('| a | b |\n|---|---|'), '| a | b |');
 });

@@ -1,6 +1,8 @@
-# Going live: the steps only you can do
+# Going live: setup steps
 
-Nothing here is done by the agent. Each step creates an account, a credential or a real message.
+The agent can prepare manifests and operate the setup UI. George handles payment
+verification and stores credentials; app permission grants are reviewed at the
+actual installation screen. See [the Slack-only setup and acceptance record](../slack/README.md).
 Put the resulting values in `~/.config/onboarding-buddy/env` on the GB10 (never in the repo).
 
 ## 1. Slack Enterprise developer sandbox
@@ -8,11 +10,11 @@ Put the resulting values in `~/.config/onboarding-buddy/env` on the GB10 (never 
 1. Join the Slack Developer Program (https://api.slack.com/developer-program) and confirm the email.
 2. **Sandboxes → Provision sandbox → empty sandbox.** It is a free Enterprise org with up to 8 users. Note its workspace.
 3. In the sandbox workspace, create a public channel `#new-couriers`. Copy its channel ID (channel details → bottom) → `OB_NEW_HIRE_CHANNEL`.
-4. https://api.slack.com/apps → **Create New App → From a manifest** → choose the sandbox org → paste `slack/app-manifest.yaml`.
+4. https://api.slack.com/apps → **Create New App → From a manifest** → choose the sandbox workspace → paste `slack/app-manifest.yaml`. Install the chat bot to that workspace.
 5. **Basic Information → App-Level Tokens → Generate**, scope `connections:write` → `SLACK_APP_TOKEN` (`xapp-…`).
-6. **Install the app at the organization level** as the sandbox Org Owner/Admin, approve the `admin.users:write` user scope, and add the app to the workspace.
-   - Bot token (`xoxb-…`) → `SLACK_BOT_TOKEN`
-   - User token (`xoxp-…`, carries `admin.users:write`) → `SLACK_ADMIN_USER_TOKEN`
+6. Bot token from the chat app (`xoxb-…`) → `SLACK_BOT_TOKEN`. For automated workspace invitations, create a **separate app** from `slack/provisioning-app-manifest.yaml` and complete its OAuth installation at the **organization level** as the sandbox Org Owner/Admin.
+   - Provisioning app's user token (`xoxp-…`, carries `admin.users:write`) → `SLACK_ADMIN_USER_TOKEN`
+   - If admin installation is unavailable, keep `OB_INVITE_MODE=manual`; the chat app still works.
 7. Workspace ID (`T…`, from the workspace URL or `auth.test`) → `SLACK_TEAM_ID`.
 8. Each manager's member ID (profile → ⋮ → Copy member ID) → `OB_MANAGER_SLACK_IDS` (comma-separated).
 9. In `#new-couriers`, run `/invite @Onboarding Buddy`.
@@ -20,6 +22,10 @@ Put the resulting values in `~/.config/onboarding-buddy/env` on the GB10 (never 
 Seat budget (8): you, your teammate, one manager persona if separate, and the two demo "workers". The workers must be email addresses one of you controls (for example `+rosa` / `+theo` aliases), so the invitation and the replies are real but reach only you.
 
 ## 2. Email (AgentMail)
+
+The Fleetwing inbox has now been created and the GB10 service switched to
+AgentMail. See [the email-only setup and acceptance record](EMAIL-SETUP.md) for
+the current configuration and first-send status.
 
 1. Create an AgentMail account and an API key → `AGENTMAIL_API_KEY`.
 2. Create an inbox, e.g. `fleetwing-onboarding@agentmail.to` → `AGENTMAIL_INBOX_ID` and `OB_EMAIL_FROM`.

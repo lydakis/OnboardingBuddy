@@ -1,0 +1,12 @@
+[
+  { "type": "about 2 years delivering food by bike for a delivery app" },
+  { "field": "largest_vehicle", "button": "car" },
+  { "type": "none really, just a hand truck at the grocery store" },
+  { "type": "what time does day one start?" },
+  { "field": "delivery_app", "button": "yes" },
+  { "field": "area_familiarity", "button": "very_well" },
+  { "type": "nights if possible" },
+  { "field": "preferred_shift", "button": "late" },
+  { "type": "3 1 3" },
+  { "field": "confirm", "button": "yes" }
+]

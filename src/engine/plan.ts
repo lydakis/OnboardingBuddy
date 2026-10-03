@@ -6,6 +6,8 @@ import type { Fact } from './extract.ts';
 import { buildPlan, hashPlan, loadPolicy, unresolvedBlocking } from './policy.ts';
 import type { PlanContent, PlanInputs, TrackId } from './policy.ts';
 import { newId, now } from '../db/store.ts';
+import { answeredValue, questionnaireFacts } from './features.ts';
+import { items } from './slack-questionnaire.ts';
 import type { CaseRow, SlackButton } from '../types.ts';
 
 type Overrides = PlanInputs['overrides'];
@@ -38,13 +40,9 @@ export function planContent(row: PlanRow): StoredPlan {
 }
 
 function sourcesFor(ctx: EngineContext, c: CaseRow): { cv: string; questionnaire: string } {
+  // The model reads the CV only; questionnaire answers become facts deterministically (features.ts).
   const cvDoc = ctx.store.documents(c.id, 'cv').at(-1);
-  const questionnaire = ctx.store
-    .checklist(c.id)
-    .filter((i) => i.key !== 'cv' && i.status === 'complete' && i.excerpt)
-    .map((i) => i.excerpt!)
-    .join('\n');
-  return { cv: (cvDoc?.content_text as string | null) ?? '', questionnaire };
+  return { cv: (cvDoc?.content_text as string | null) ?? '', questionnaire: '' };
 }
 
 /** Runs the local model once per case (re-run with force). Output is validated before it is stored. */
@@ -62,6 +60,7 @@ export async function extractExperience(ctx: EngineContext, c: CaseRow, force = 
   try {
     raw = await ctx.adapters.llm.complete(buildExtractionMessages(sources.cv, sources.questionnaire), { jsonSchema: EXTRACTION_SCHEMA, sessionKey: `onboarding-${c.id}-extract` });
     ({ facts, errors } = validateExtraction(raw, sources));
+    facts = facts.filter((f) => f.source === 'cv');
   } catch (err) {
     errors = [`local model call failed: ${err instanceof Error ? err.message : String(err)}`];
   }
@@ -74,19 +73,25 @@ export async function extractExperience(ctx: EngineContext, c: CaseRow, force = 
 }
 
 export async function proposePlan(ctx: EngineContext, c: CaseRow, actor: string, overrides?: Overrides): Promise<PlanRow> {
-  if (!['intake_complete', 'plan_proposed'].includes(c.status)) throw new UserError(`${c.id} is in "${c.status}"; a plan can be proposed after intake is complete and before approval.`);
+  if (['intake', 'questionnaire', 'plan_approved', 'plan_sent', 'training', 'training_complete'].includes(c.status)) {
+    throw new UserError(c.status === 'questionnaire' ? `${c.worker_name} is still answering the Slack questions.` : `${c.id} is in "${c.status}"; a plan can be proposed after intake and before approval.`);
+  }
   const extraction = await extractExperience(ctx, c);
   const sources = sourcesFor(ctx, c);
-  const license = ctx.store.checklist(c.id).find((i) => i.key === 'drivers_license');
+  const cvFacts = extraction.facts.filter((f) => f.source === 'cv');
+  const answered = questionnaireFacts(ctx, c.id, cvFacts);
+  const licenseItem = items(ctx, c.id).find((i) => i.field === 'license_class' && i.status === 'answered');
+  const licenseFromAnswer = answered.find((f) => f.name === 'license_class');
   const previous = latestPlan(ctx, c.id);
   const ov: Overrides = overrides ?? (previous ? planContent(previous).overrideInput : { add: [], remove: [], resolved: {} });
   const content = buildPlan(loadPolicy(), {
-    facts: extraction.facts,
+    facts: [...cvFacts, ...answered],
     extractionErrors: extraction.errors,
     extractionFailed: extraction.failed,
-    licenseAnswer: license?.status === 'complete' ? license.value : null,
-    licenseExcerpt: license?.excerpt ?? null,
+    licenseAnswer: licenseFromAnswer ? String(licenseFromAnswer.value) : null,
+    licenseExcerpt: licenseItem?.answer_raw ?? null,
     injectionExcerpt: detectInstructionText(sources.cv),
+    preferredShift: (answeredValue(ctx, c.id, 'preferred_shift') as string | undefined) ?? null,
     overrides: ov,
   });
   const stored: StoredPlan = { ...content, overrideInput: ov };
@@ -115,6 +120,7 @@ export function planSummary(c: CaseRow, row: PlanRow): { text: string; buttons: 
     ...p.track.evidence.slice(0, 3).map((e) => `   ↳ ${e.source}: "${e.excerpt}"`),
     `*Modules:* ${p.modules.map((m) => `${m.id} (${m.hours}h, day ${m.days.join('-')})`).join(', ')}`,
     `*Ramp (policy ${p.policyId}):* ${p.schedule.map((s) => `D${s.day} ${s.targetStops}`).join(' · ')} stops/day`,
+    ...(p.rideAlongStart ? [`*Ride-along starts* ${p.rideAlongStart.time} (${p.rideAlongStart.shift} shift) · ${p.rideAlongStart.rule.split(':')[0]}`] : []),
   ];
   if (p.reviewItems.length) lines.push('*Review:*', ...p.reviewItems.map((r) => `   ${r.resolution ? '✅' : r.blocking ? '⛔' : 'ℹ️'} ${r.text}${r.resolution ? ` — resolved: ${r.resolution}` : ''}`));
   if (p.missingInfo.length) lines.push('*Missing info:*', ...p.missingInfo.map((m) => `   • ${m}`));
@@ -177,6 +183,15 @@ export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: 
     '— Onboarding assistant',
   ].join('\n');
   const r = await sendEmail(ctx, { actionKey: `email:plan:${c.id}:v${version}`, caseId: c.id, kind: 'plan', to: c.worker_email, subject: 'Your approved two-week onboarding plan', text });
+  if (c.slack_user_id) {
+    const days = p.schedule
+      .filter((s) => s.modules.length || s.targetStops)
+      .map((s) => `• Day ${s.day}: ${s.modules.map((id) => p.modules.find((m) => m.id === id)!.title).join('; ') || 'On route'}${s.targetStops ? ` (up to ${s.targetStops} stops)` : ''}`);
+    await postSlack(ctx, {
+      actionKey: `slack:plan-dm:${c.id}:v${version}`, caseId: c.id, kind: 'plan', channel: c.slack_user_id,
+      text: [`🎉 Your manager approved your two-week plan: *${p.track.label}*.`, p.rideAlongStart ? `Ride-along and route days start at *${p.rideAlongStart.time}* (${p.rideAlongStart.shift} shift).` : '', ...days, 'Stop numbers are the standard ramp for new couriers, not a judgement on you. Ask me here anytime.'].filter(Boolean).join('\n'),
+    });
+  }
   if (r.state === 'sent') {
     ctx.store.db.prepare(`UPDATE plans SET status = 'sent' WHERE id = ?`).run(row.id);
     ctx.store.setStatus(c.id, 'plan_sent');

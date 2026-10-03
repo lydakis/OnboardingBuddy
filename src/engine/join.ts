@@ -5,6 +5,7 @@
 import type { EngineContext } from './context.ts';
 import { assertLiveRecipientAllowed, isManager, postSlack, sendEmail } from './context.ts';
 import { UserError, findCase, registerCommand } from './commands.ts';
+import { REQUIRED_KEYS } from './questionnaire.ts';
 import { newId, now } from '../db/store.ts';
 import type { CaseRow, SlackTeamJoinEvent, SlackUser } from '../types.ts';
 
@@ -39,7 +40,7 @@ function setInvitation(ctx: EngineContext, caseId: string, fields: Partial<Invit
 export function readinessProblems(ctx: EngineContext, c: CaseRow): string[] {
   const problems: string[] = [];
   const items = ctx.store.checklist(c.id);
-  if (ctx.config.readiness.requireIntakeComplete && items.some((i) => i.status !== 'complete')) problems.push('intake checklist is not complete');
+  if (ctx.config.readiness.requireIntakeComplete && (c.status === 'intake' || items.some((i) => REQUIRED_KEYS.has(i.key) && i.status !== 'complete'))) problems.push('intake checklist is not complete');
   if (ctx.config.readiness.requirePlanSent && !['plan_sent', 'slack_invited', 'slack_joined'].includes(c.status)) problems.push('approved training plan has not been sent');
   if (!items.find((i) => i.key === 'slack_email' && i.status === 'complete')) problems.push('no confirmed email for the Slack invite');
   if (c.needs_attention) problems.push(`open issue: ${c.needs_attention}`);
@@ -170,10 +171,16 @@ async function welcome(ctx: EngineContext, c: CaseRow, userId: string): Promise<
     actionKey: `slack:welcome-channel:${c.id}`, caseId: c.id, kind: 'welcome_channel', channel,
     text: `👋 Please welcome <@${userId}> (${name}) to the team! They start their onboarding plan this week.`,
   });
-  await postSlack(ctx, {
-    actionKey: `slack:welcome-dm:${c.id}`, caseId: c.id, kind: 'welcome_dm', channel: userId,
-    text: `Hi ${name}, you're in! I'm the onboarding assistant. Your approved plan is in your email; ask me here if you have questions about it.`,
-  });
+  // The DM welcome now opens the tailored questionnaire (question 1); older cases without items get a plain hello.
+  const { currentItem, startQuestionnaire } = await import('./slack-questionnaire.ts');
+  if (currentItem(ctx, c.id)) {
+    await startQuestionnaire(ctx, c, name ?? c.worker_name);
+  } else {
+    await postSlack(ctx, {
+      actionKey: `slack:welcome-dm:${c.id}`, caseId: c.id, kind: 'welcome_dm', channel: userId,
+      text: `Hi ${name}, you're in! I'm your onboarding assistant. Ask me here if you have questions about your first weeks.`,
+    });
+  }
   await postSlack(ctx, {
     actionKey: `slack:joined-manager:${c.id}`, caseId: c.id, kind: 'joined_notice', channel: c.manager_slack_id,
     text: `✅ ${c.worker_name} (${c.id}) joined Slack as <@${userId}> and was welcomed in ${channel}.`,

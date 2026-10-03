@@ -44,21 +44,35 @@ export function findCase(ctx: EngineContext, ref: string | undefined): CaseRow {
 
 export class UserError extends Error {}
 
+/** Commands that call the local model; they get an immediate placeholder that is edited in place. */
+const SLOW_COMMANDS: Record<string, string> = {
+  plan: 'Drafting the training plan',
+  revise: 'Updating the plan',
+  quiz: 'Writing the quiz',
+};
+
 /** Entry point for every manager command (slash command, button click, or mock CLI). */
 export async function handleSlackCommand(ctx: EngineContext, event: SlackCommandEvent): Promise<CommandReply & { duplicate?: boolean }> {
   if (!ctx.store.claimEvent(`slack:${event.eventId}`, null, 'processing')) {
     return { text: '(duplicate Slack event ignored)', duplicate: true };
   }
-  const [rawName, ...args] = tokenize(event.text.replace(/^\/onboard\s*/, ''));
+  // Slack auto-links email addresses in DMs. Use the mailto destination, never
+  // its display label, so start/status work with the worker's actual address.
+  const commandText = event.text.replace(/<mailto:([^|>]+)(?:\|[^>]+)?>/g, '$1');
+  const [rawName, ...args] = tokenize(commandText.replace(/^\/onboard\s*/, ''));
   const name = (rawName ?? 'help').toLowerCase();
   const entry = handlers.get(name);
   let reply: CommandReply;
+  let placeholder: Awaited<ReturnType<typeof postSlack>> | undefined;
   if (!entry) {
     reply = { text: `Unknown command "${name}".\n${helpText()}` };
   } else if (!OPEN_COMMANDS.has(name) && !isManager(ctx, event.userId)) {
     ctx.store.audit(null, event.userId, 'unauthorized_command', { command: name });
     reply = { text: `Sorry, only an authorized onboarding manager can run "${name}".` };
   } else {
+    if (SLOW_COMMANDS[name]) {
+      placeholder = await postSlack(ctx, { actionKey: `slack:reply:${event.eventId}`, caseId: null, kind: 'command_reply', channel: event.channel, text: `_${SLOW_COMMANDS[name]}…_` });
+    }
     try {
       reply = await entry.handler(ctx, args, event);
     } catch (err) {
@@ -67,7 +81,16 @@ export async function handleSlackCommand(ctx: EngineContext, event: SlackCommand
     }
   }
   ctx.store.setEventOutcome(`slack:${event.eventId}`, null, 'handled');
-  await postSlack(ctx, { actionKey: `slack:reply:${event.eventId}`, caseId: null, kind: 'command_reply', channel: event.channel, text: reply.text, buttons: reply.buttons });
+  if (placeholder?.state === 'sent') {
+    try {
+      await ctx.adapters.slack.update(event.channel, placeholder.providerMessageId, reply.text, reply.buttons);
+      return reply;
+    } catch (err) {
+      ctx.store.audit(null, 'system', 'reply_update_failed', { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  if (!reply.text) return reply; // the handler already posted everything it needed to
+  await postSlack(ctx, { actionKey: `slack:reply:${event.eventId}${placeholder ? ':final' : ''}`, caseId: null, kind: 'command_reply', channel: event.channel, text: reply.text, buttons: reply.buttons });
   return reply;
 }
 
@@ -116,4 +139,21 @@ registerCommand('clear', 'clear <case> "what you checked"', async (ctx, args, ev
   ctx.store.audit(c.id, event.userId, 'attention_cleared', { issue: c.needs_attention, note });
   ctx.store.updateCase(c.id, { needs_attention: null });
   return { text: `Cleared the open issue on ${c.id}: "${note}".` };
+});
+
+registerCommand('accept-sender', 'accept-sender <case> <address> [message id]', async (ctx, args, event) => {
+  const c = findCase(ctx, args[0]);
+  const address = (args[1] ?? '').toLowerCase().replace(/^<mailto:([^|>]+).*$/, '$1');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) throw new UserError('Usage: accept-sender <case> <email address>');
+  ctx.store.db.prepare('INSERT OR IGNORE INTO case_senders (case_id, address, approved_by, created_at) VALUES (?, ?, ?, ?)').run(c.id, address, event.userId, new Date().toISOString());
+  ctx.store.audit(c.id, event.userId, 'sender_accepted', { address });
+  const messageId = args[2];
+  if (messageId) {
+    // Put the quarantined reply back in the queue; the next poll applies it to the case.
+    ctx.store.db.prepare(`DELETE FROM processed_events WHERE event_key = ?`).run(`email:${messageId}`);
+    ctx.store.db.prepare(`DELETE FROM messages WHERE channel = 'email' AND direction = 'in' AND provider_message_id = ? AND case_id IS NULL`).run(messageId);
+    await ctx.adapters.email.requeue(messageId);
+  }
+  ctx.store.updateCase(c.id, { needs_attention: null });
+  return { text: `Okay, replies from ${address} now count as ${c.worker_name}.${messageId ? ' Processing their reply now.' : ''}` };
 });

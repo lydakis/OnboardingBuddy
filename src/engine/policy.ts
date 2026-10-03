@@ -12,6 +12,8 @@ export interface Policy {
   disclaimer: string;
   standardRoute: { stopsPerDay: number };
   review: { experienceToleranceYears: number; rule: string };
+  shifts?: Record<string, string>;
+  scheduleRule?: string;
   tracks: { id: TrackId; label: string; rule: string; minParcelYears: number; requiresLicense: boolean; rampPctByDay: number[] }[];
   modules: {
     id: string;
@@ -63,6 +65,7 @@ export interface PlanContent {
   missingInfo: string[];
   overrides: string[];
   disclaimer: string;
+  rideAlongStart?: { shift: string; time: string; rule: string };
 }
 
 export interface PlanInputs {
@@ -72,6 +75,7 @@ export interface PlanInputs {
   licenseAnswer: string | null; // from the questionnaire checklist
   licenseExcerpt: string | null;
   injectionExcerpt: string | null;
+  preferredShift?: string | null;
   overrides: { track?: TrackId; add: string[]; remove: string[]; resolved: Record<string, string> };
 }
 
@@ -178,6 +182,9 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
     missingInfo,
     overrides,
     disclaimer: policy.disclaimer,
+    ...(input.preferredShift && policy.shifts?.[input.preferredShift]
+      ? { rideAlongStart: { shift: input.preferredShift, time: policy.shifts[input.preferredShift]!, rule: policy.scheduleRule ?? '' } }
+      : {}),
   };
 }
 

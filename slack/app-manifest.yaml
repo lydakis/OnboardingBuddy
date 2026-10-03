@@ -1,5 +1,5 @@
-# Slack app manifest for the Enterprise developer sandbox.
-# api.slack.com/apps → Create New App → From a manifest → pick the sandbox org.
+# Chat bot: install in the Fleetwing demo workspace.
+# Workspace invitations use the separate provisioning-app-manifest.yaml app.
 display_information:
   name: Onboarding Buddy
   description: Fleetwing Express (fictional) onboarding assistant, hackathon demo
@@ -30,8 +30,7 @@ oauth_config:
       - groups:write
       - im:history
       - app_mentions:read
-    user:
-      - admin.users:write
+      - files:read
 settings:
   event_subscriptions:
     bot_events:
@@ -40,6 +39,6 @@ settings:
       - app_mention
   interactivity:
     is_enabled: true
-  org_deploy_enabled: true
+  org_deploy_enabled: false
   socket_mode_enabled: true
   token_rotation_enabled: false

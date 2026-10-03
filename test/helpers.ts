@@ -23,10 +23,6 @@ export function command(app: App, userId: string, text: string) {
 export const FULL_ANSWERS = [
   'Preferred name: Rosa',
   'LinkedIn: https://www.linkedin.com/in/rosa-delgado-demo',
-  "Driver's license: CDL-B",
-  'Delivery/logistics experience: 5 years route driver',
-  'Equipment used: handheld scanner, box truck',
-  'Preferred shift: early',
   'Email for Slack invite: rosa.delgado@example.net',
 ].join('\n');
 

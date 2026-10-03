@@ -58,7 +58,7 @@ export async function runPhase1(app: App, log: Log): Promise<void> {
   mail.replyAsWorker({ from: `Rosa Delgado <${ROSA.email}>`, text: fixture(`workers/${ROSA.dir}/reply-1.txt`), attachments: [{ filename: 'Rosa_Delgado_CV.txt', contentType: 'text/plain', text: fixture(`workers/${ROSA.dir}/cv.txt`) }] });
   await poll(app, log);
 
-  log('\n✉️  Theo replies with only some answers (blank LinkedIn, invalid shift, no CV).');
+  log('\n✉️  Theo replies with only some answers (blank LinkedIn, no CV, no Slack email).');
   const partial = mail.replyAsWorker({ from: THEO.email, text: fixture(`workers/${THEO.dir}/reply-1-partial.txt`) });
   await poll(app, log);
   log(`\n✉️  Focused follow-up to Theo:\n${lastEmailTo(app, THEO.email).split('\n').slice(0, 9).map((l) => `    | ${l}`).join('\n')}`);
@@ -83,34 +83,49 @@ export async function runPhase1(app: App, log: Log): Promise<void> {
 }
 
 /** Phase 2: evidence-backed plans, a blocking conflict, revision, approval, and the approved email. */
-export async function runPhase2(app: App, log: Log): Promise<void> {
-  log('\n═══ PHASE 2 — TRAINING PLAN ═══');
-  await slack(app, log, MANAGER, 'plan FW-001');
-  await slack(app, log, MANAGER, 'plan FW-002');
-  log('\n⛔ Theo\'s plan cannot be approved while the experience conflict is open:');
-  await slack(app, log, MANAGER, 'approve FW-002 v1');
-  await slack(app, log, MANAGER, 'evidence FW-002');
-  await slack(app, log, MANAGER, 'revise FW-002 resolve=experience-conflict "Called Theo: the bike work was app food delivery, not parcel routes. Foundations is right."');
-  await slack(app, log, MANAGER, 'approve FW-002 v2');
-  await slack(app, log, 'U_DISPATCH_LEE', 'approve FW-001 v1');
-  await slack(app, log, MANAGER, 'revise FW-001 add=DRV-220 "Company insurance requires defensive driving for all new drivers this quarter."');
-  await slack(app, log, MANAGER, 'approve FW-001 v2');
-  log(`\n✉️  Approved plan emailed to Rosa (excerpt):\n${lastEmailTo(app, ROSA.email).split('\n').slice(0, 8).map((l) => `    | ${l}`).join('\n')}`);
+/** Replays a worker's scripted Slack DM answers (buttons and typed replies) and prints the bot's DMs. */
+async function replayAnswers(app: App, log: Log, caseId: string, userId: string, dir: string): Promise<void> {
+  const { handleAgentMessage } = await import('../engine/agent.ts');
+  const { handleSlackCommand } = await import('../engine/commands.ts');
+  const steps = JSON.parse(fixture(`workers/${dir}/slack-answers.json`)) as { field?: string; button?: string; type?: string }[];
+  const dm = `D_${userId}`;
+  const mine = () => app.mocks.slack!.posts().filter((p) => p.channel === userId || p.channel === dm);
+  let seen = mine().length;
+  const flush = () => {
+    const posts = mine();
+    for (const p of posts.slice(seen)) {
+      const buttons = p.buttons ? ` [${(JSON.parse(p.buttons) as { text: string }[]).map((b) => b.text).join('] [')}]` : '';
+      log(`    🤖 ${p.text.split('\n').join('\n       ')}${buttons.length < 200 ? buttons : ' [1–5 rating buttons]'}`);
+    }
+    seen = posts.length;
+  };
+  flush();
+  for (const [n, st] of steps.entries()) {
+    if (st.button) {
+      log(`  👆 ${userId} taps "${st.button}"`);
+      await handleSlackCommand(app, { eventId: `q-${caseId}-${n}-${Date.now()}`, userId, channel: userId, text: `answer ${caseId} ${st.field} ${st.button}` });
+    } else {
+      log(`  💬 ${userId}: ${st.type}`);
+      await handleAgentMessage(app, { eventId: `q-${caseId}-${n}-${Date.now()}`, userId, channel: dm, text: st.type! });
+    }
+    flush();
+  }
 }
 
-/** Phase 3: readiness, invite vs joined, ambiguous identity review, welcome. */
-export async function runPhase3(app: App, log: Log): Promise<void> {
+/** Phase 2: invite after intake, invite ≠ joined, identity review, then the tailored questions in Slack. */
+export async function runPhase2(app: App, log: Log): Promise<void> {
   const { handleTeamJoin } = await import('../engine/join.ts');
   const slackMock = app.mocks.slack!;
-  log('\n═══ PHASE 3 — JOIN SLACK ═══');
+  log('\n═══ PHASE 2 — JOIN SLACK + QUESTIONS ═══');
   await slack(app, log, MANAGER, `start "Sam Rivera" sam.rivera@example.net`);
   await slack(app, log, MANAGER, 'invite FW-003');
   await slack(app, log, MANAGER, 'invite FW-001');
-  await slack(app, log, MANAGER, 'status FW-001');
 
   log('\n🧑 Rosa accepts the invite: Slack sends team_join with her invite email.');
   slackMock.addUser({ id: 'U_ROSA', email: ROSA.email, realName: 'Rosa Delgado' });
   log(`    → ${await handleTeamJoin(app, { eventId: 'Ev-rosa-join', user: { id: 'U_ROSA', email: ROSA.email, realName: 'Rosa Delgado' } })}`);
+  log('\n📱 Rosa answers her questions in the DM (CV says 5 years on parcel routes):');
+  await replayAnswers(app, log, 'FW-001', 'U_ROSA', ROSA.dir);
 
   await slack(app, log, MANAGER, 'invite FW-002');
   await slack(app, log, MANAGER, 'clear FW-002 "The other sender was Theo\'s roommate forwarding; nothing was applied."');
@@ -118,7 +133,29 @@ export async function runPhase3(app: App, log: Log): Promise<void> {
   log('\n🧑 Someone named "Theo" joins with a personal address that does not match the invite.');
   slackMock.addUser({ id: 'U_THEO_P', email: 'tpark.personal@example.org', realName: 'Theo P.' });
   log(`    → ${await handleTeamJoin(app, { eventId: 'Ev-theo-join', user: { id: 'U_THEO_P', email: 'tpark.personal@example.org', realName: 'Theo P.' } })}`);
-  await slack(app, log, MANAGER, 'status FW-002');
   await slack(app, log, MANAGER, 'link FW-002 U_THEO_P');
+  log('\n📱 Theo answers in his own words (his CV lists no delivery work):');
+  await replayAnswers(app, log, 'FW-002', 'U_THEO_P', THEO.dir);
   log(`\n#new-couriers:\n${slackMock.posts(app.config.newHireChannel).map((p) => `    | ${p.text}`).join('\n')}`);
+}
+
+/** Phase 3: plans from CV + answers, a blocking conflict, revision, approval, plan DM, sandboxed tools. */
+export async function runPhase3(app: App, log: Log): Promise<void> {
+  log('\n═══ PHASE 3 — TRAINING PLAN ═══');
+  await slack(app, log, MANAGER, 'plan FW-001');
+  await slack(app, log, MANAGER, 'plan FW-002');
+  log('\n⛔ Theo\'s plan cannot be approved while the experience conflict is open:');
+  await slack(app, log, MANAGER, 'approve FW-002 v1');
+  await slack(app, log, MANAGER, 'revise FW-002 resolve=experience-conflict "Called Theo: the bike work was app food delivery, not parcel routes. Foundations is right."');
+  await slack(app, log, MANAGER, 'approve FW-002 v2');
+  await slack(app, log, 'U_DISPATCH_LEE', 'approve FW-001 v1');
+  await slack(app, log, MANAGER, 'approve FW-001 v1');
+  log(`\n📱 Plan DM to Rosa:\n${(app.mocks.slack!.posts('U_ROSA').at(-1)?.text ?? '').split('\n').map((l) => `    | ${l}`).join('\n')}`);
+
+  log('\n🛡️  Tool use inside the NemoClaw/OpenShell sandbox (read-only tools, no egress):');
+  await slack(app, log, MANAGER, 'quiz FW-001');
+  await slack(app, log, MANAGER, 'quiz-send FW-001');
+  const { handleAgentMessage } = await import('../engine/agent.ts');
+  log(`\n💬 DM from <${MANAGER}>: anything blocked?`);
+  log(`    🤖 ${(await handleAgentMessage(app, { eventId: `dm-${Date.now()}`, userId: MANAGER, channel: `D_${MANAGER}`, text: 'Anything blocked right now?' })).split('\n').join('\n    ')}`);
 }

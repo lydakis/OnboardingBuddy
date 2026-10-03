@@ -1,6 +1,8 @@
 import type { EngineContext } from './context.ts';
 import { postSlack, sendEmail } from './context.ts';
-import { CHECKLIST, CV_ITEM, QUESTIONS, parseAnswers, questionnaireTemplate } from './questionnaire.ts';
+import { CHECKLIST, CV_ITEM, QUESTIONS, REQUIRED_KEYS, parseAnswers, questionnaireTemplate } from './questionnaire.ts';
+import type { ParsedAnswer } from './questionnaire.ts';
+import { extractFreeformAnswers } from './reply-extract.ts';
 import type { CaseRow, InboundEmail } from '../types.ts';
 
 const MAX_FOLLOW_UPS = 3;
@@ -8,6 +10,14 @@ const MAX_FOLLOW_UPS = 3;
 export function normalizeAddress(raw: string): string {
   const m = raw.match(/<([^>]+)>/);
   return (m ? m[1]! : raw).trim().toLowerCase();
+}
+
+/** Exact match, the same mailbox without a +tag (Gmail replies to +aliases come from the base address), or a manager-approved address. */
+export function senderMatches(ctx: EngineContext, c: CaseRow, from: string): boolean {
+  if (from === c.worker_email) return true;
+  const base = (a: string) => a.replace(/\+[^@]*@/, '@');
+  if (base(from) === base(c.worker_email) && !from.includes('+')) return true;
+  return Boolean(ctx.store.db.prepare('SELECT 1 FROM case_senders WHERE case_id = ? AND address = ?').get(c.id, from));
 }
 
 export async function startCase(
@@ -38,11 +48,12 @@ async function sendWelcome(ctx: EngineContext, c: CaseRow): Promise<void> {
     '',
     'Please reply to this email with:',
     '  1. Your CV or résumé (attach it, or paste it under a line that says "CV:")',
-    '  2. Your answers to the short questionnaire below (just fill in after each colon):',
+    '  2. These three details (just fill in after each colon, or tell me in your own words):',
     '',
     questionnaireTemplate(),
     '',
-    'Once we have everything, your manager will review a training plan with you and we will invite you to our team Slack.',
+    "Once you join our team Slack, I'll ask you a few quick questions there.",
+    'Your answers are used to plan your training and to improve how we plan onboarding.',
     '',
     `— Onboarding assistant, ${company}`,
     '(This is a demo with a fictional company. Do not send real personal documents.)',
@@ -61,7 +72,7 @@ async function sendWelcome(ctx: EngineContext, c: CaseRow): Promise<void> {
 export type InboundOutcome =
   | { outcome: 'duplicate' }
   | { outcome: 'unmatched'; reason: string }
-  | { outcome: 'quarantined'; caseId: string; reason: string }
+  | { outcome: 'quarantined'; caseId: string; reason: string; from?: string }
   | { outcome: 'updated'; caseId: string; completed: string[]; stillMissing: string[]; intakeComplete: boolean };
 
 export async function processInboundEmail(ctx: EngineContext, msg: InboundEmail): Promise<InboundOutcome> {
@@ -79,14 +90,14 @@ export async function processInboundEmail(ctx: EngineContext, msg: InboundEmail)
     if (threadMatch) {
       caseRow = store.getCase(threadMatch.case_id);
       correlation = 'thread+sender';
-      if (caseRow && caseRow.worker_email !== from) {
+      if (caseRow && !senderMatches(ctx, caseRow, from)) {
         // Right thread, wrong sender: a forward, a shared inbox, or spoofing. Never apply it.
         const reason = `Reply on ${caseRow.id}'s thread came from ${from}, expected ${caseRow.worker_email}`;
         store.insertMessage({ caseId: null, channel: 'email', direction: 'in', providerMessageId: msg.providerMessageId, threadId: msg.threadId, inReplyTo: msg.inReplyTo, from, to: msg.to, subject: msg.subject, body: msg.text, correlation: 'quarantined:sender_mismatch' });
         store.audit(caseRow.id, 'system', 'reply_quarantined', { reason });
         store.updateCase(caseRow.id, { needs_attention: reason });
         store.setEventOutcome(eventKey, caseRow.id, 'quarantined');
-        return { outcome: 'quarantined', caseId: caseRow.id, reason };
+        return { outcome: 'quarantined', caseId: caseRow.id, reason, from } as InboundOutcome;
       }
     } else {
       const candidates = store.findOpenCasesByEmail(from);
@@ -115,13 +126,25 @@ export async function processInboundEmail(ctx: EngineContext, msg: InboundEmail)
 
   if (phaseA.outcome !== 'accepted') {
     await ctx.adapters.email.acknowledge(msg.providerMessageId);
+    if (phaseA.outcome === 'quarantined') {
+      const c = store.getCase(phaseA.caseId)!;
+      await postSlack(ctx, {
+        actionKey: `slack:quarantine:${msg.providerMessageId}`, caseId: c.id, kind: 'quarantine', channel: c.manager_slack_id,
+        text: `🔒 A reply on *${c.worker_name}*'s onboarding thread came from *${from}*, not ${c.worker_email}. I haven't used it. If ${from} is ${c.worker_name}, accept it and I'll process this and future replies from that address.`,
+        buttons: [{ text: `It's ${c.worker_name.split(' ')[0]}, accept`, command: `accept-sender ${c.id} ${from} ${msg.providerMessageId}`, style: 'primary' }],
+      });
+    }
     return phaseA;
   }
 
   const { caseRow, messageId } = phaseA;
-  const completed = store.transaction(() => applyReply(ctx, caseRow, msg, messageId));
+  // Questions still open after the labelled parse go to the local model (validated, verbatim excerpts).
+  const labelled = new Set(parseAnswers(msg.text).answers.filter((a) => 'value' in a.result).map((a) => a.key));
+  const open = store.checklist(caseRow.id).filter((i) => i.status !== 'complete' && i.key !== CV_ITEM.key && !labelled.has(i.key)).map((i) => i.key);
+  const modelAnswers = await extractFreeformAnswers(ctx, caseRow, msg.text, open);
+  const completed = store.transaction(() => applyReply(ctx, caseRow, msg, messageId, modelAnswers));
   const items = store.checklist(caseRow.id);
-  const stillMissing = items.filter((i) => i.status !== 'complete').map((i) => i.key);
+  const stillMissing = items.filter((i) => REQUIRED_KEYS.has(i.key) && i.status !== 'complete').map((i) => i.key);
   const intakeComplete = stillMissing.length === 0;
 
   if (intakeComplete && caseRow.status === 'intake') {
@@ -130,32 +153,46 @@ export async function processInboundEmail(ctx: EngineContext, msg: InboundEmail)
     await sendEmail(ctx, {
       actionKey: `email:intake-thanks:${caseRow.id}`, caseId: caseRow.id, kind: 'intake_thanks', to: caseRow.worker_email,
       subject: 'Thanks — we have everything we need', replyTo: msg.providerMessageId,
-      text: `Hi ${preferredName(ctx, caseRow)},\n\nThanks, that's everything. Your manager will review a training plan next and I'll email it to you once it's approved.\n\n— Onboarding assistant`,
+      text: `Hi ${preferredName(ctx, caseRow)},\n\nThanks, that's everything for now. Next, you'll get an invitation to our team Slack. Once you're in, I'll ask you a few quick questions there.\n\n— Onboarding assistant`,
     });
+    // Read the CV now and pick the tailored Slack questions for this worker.
+    const { extractExperience } = await import('./plan.ts');
+    const { generateItems, labelFor } = await import('./slack-questionnaire.ts');
+    const extraction = await extractExperience(ctx, caseRow);
+    const cvText = String(store.documents(caseRow.id, 'cv').at(-1)?.content_text ?? '');
+    const planned = generateItems(ctx, caseRow, extraction.facts, cvText);
     await postSlack(ctx, {
       actionKey: `slack:intake-complete:${caseRow.id}`, caseId: caseRow.id, kind: 'intake_complete', channel: caseRow.manager_slack_id,
-      text: `✅ Intake complete for *${caseRow.worker_name}* (${caseRow.id}). CV and questionnaire received.`,
-      buttons: [{ text: 'Propose training plan', command: `plan ${caseRow.id}`, style: 'primary' }, { text: 'Status', command: `status ${caseRow.id}` }],
+      text: `✅ Intake complete for *${caseRow.worker_name}* (${caseRow.id}). CV, name and Slack email received.\nAfter they join Slack I'll ask ${planned.length} questions: ${planned.map((q) => labelFor(q.field)).join(', ')}.`,
+      buttons: [{ text: 'Invite to Slack', command: `invite ${caseRow.id}`, style: 'primary' }, { text: 'Status', command: `status ${caseRow.id}` }],
     });
   } else if (!intakeComplete) {
     await followUp(ctx, caseRow, msg.providerMessageId);
+    const labels = new Map(items.map((i) => [i.key, i.label]));
+    await postSlack(ctx, {
+      actionKey: `slack:reply-update:${caseRow.id}:${msg.providerMessageId}`, caseId: caseRow.id, kind: 'reply_update', channel: caseRow.manager_slack_id,
+      text: `📩 *${caseRow.worker_name}* replied${completed.length ? ` with ${completed.map((k) => labels.get(k)).join(', ')}` : ''}. Still missing: ${stillMissing.map((k) => labels.get(k)).join(', ')}. I've emailed them about it.`,
+      buttons: [{ text: 'Status', command: `status ${caseRow.id}` }],
+    });
   }
   await ctx.adapters.email.acknowledge(msg.providerMessageId);
   return { outcome: 'updated', caseId: caseRow.id, completed, stillMissing, intakeComplete };
 }
 
-function applyReply(ctx: EngineContext, c: CaseRow, msg: InboundEmail, messageId: string): string[] {
+function applyReply(ctx: EngineContext, c: CaseRow, msg: InboundEmail, messageId: string, modelAnswers: ParsedAnswer[] = []): string[] {
   const { store } = ctx;
   const completed: string[] = [];
   const current = new Map(store.checklist(c.id).map((i) => [i.key, i]));
-  const { answers, cvText } = parseAnswers(msg.text);
+  const parsed = parseAnswers(msg.text);
+  const { cvText } = parsed;
+  const answers = [...parsed.answers, ...modelAnswers.filter((m) => !parsed.answers.some((a) => a.key === m.key))];
 
   for (const a of answers) {
     const before = current.get(a.key);
     if ('value' in a.result) {
       if (before?.status === 'complete' && before.value === a.result.value) continue;
       store.updateChecklistItem(c.id, a.key, { status: 'complete', value: a.result.value, excerpt: a.excerpt, sourceMessageId: messageId });
-      store.audit(c.id, 'worker', before?.status === 'complete' ? 'answer_updated' : 'answer_recorded', { key: a.key });
+      store.audit(c.id, 'worker', before?.status === 'complete' ? 'answer_updated' : 'answer_recorded', { key: a.key, source: modelAnswers.includes(a) ? 'model' : 'labelled' });
       completed.push(a.key);
     } else if (before?.status !== 'complete') {
       store.updateChecklistItem(c.id, a.key, { status: 'missing', value: null, excerpt: a.excerpt, note: a.result.error, sourceMessageId: messageId });
@@ -163,7 +200,8 @@ function applyReply(ctx: EngineContext, c: CaseRow, msg: InboundEmail, messageId
     }
   }
 
-  const cvAttachment = msg.attachments.find((a) => /cv|resume|résumé/i.test(a.filename)) ?? msg.attachments[0];
+  const docs = msg.attachments.filter((a) => /pdf|word|officedocument|text\/|rtf/i.test(a.contentType) || /\.(pdf|docx?|txt|md|rtf)$/i.test(a.filename));
+  const cvAttachment = docs.find((a) => /cv|resume|résumé/i.test(a.filename)) ?? docs[0];
   if (cvAttachment || cvText) {
     const text = cvAttachment ? (cvAttachment.text ?? null) : cvText;
     const filename = cvAttachment?.filename ?? 'cv-pasted-in-email.txt';
@@ -185,7 +223,7 @@ function applyReply(ctx: EngineContext, c: CaseRow, msg: InboundEmail, messageId
 }
 
 async function followUp(ctx: EngineContext, c: CaseRow, triggeringMessageId: string): Promise<void> {
-  const items = ctx.store.checklist(c.id).filter((i) => i.status !== 'complete');
+  const items = ctx.store.checklist(c.id).filter((i) => REQUIRED_KEYS.has(i.key) && i.status !== 'complete');
   const sentFollowUps = ctx.store.outbox(c.id).filter((o) => o.kind === 'follow_up' && o.status === 'sent').length;
   if (sentFollowUps >= MAX_FOLLOW_UPS) {
     await postSlack(ctx, {
@@ -225,7 +263,7 @@ export async function pollEmail(ctx: EngineContext): Promise<InboundOutcome[]> {
 
 export function statusText(ctx: EngineContext, c: CaseRow): string {
   const icon = { complete: '✅', missing: '⬜', needs_review: '⚠️' } as const;
-  const items = ctx.store.checklist(c.id);
+  const items = ctx.store.checklist(c.id).filter((i) => CHECKLIST.some((x) => x.key === i.key));
   const done = items.filter((i) => i.status === 'complete').length;
   const lines = [
     `*${c.worker_name}* (${c.id}) — status: *${c.status}*  ·  intake ${done}/${items.length}`,

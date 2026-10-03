@@ -44,6 +44,17 @@ if (config.slack.mode === 'socket') {
         log(`slack command from ${e.userId}: ${e.text.split(' ')[0]} → ${r.text.split('\n')[0]!.slice(0, 80)}`);
       },
       onTeamJoin: async (e) => log(`team_join ${e.user.id}: ${await handleTeamJoin(app, e)}`),
+      onFileShare: async (e) => {
+        const { ingestRoster } = await import('./engine/roster.ts');
+        for (const f of e.files.slice(0, 3)) {
+          try {
+            const bytes = await app.adapters.slack.downloadFile(f.url);
+            log(`roster ${f.name} from ${e.userId}: ${(await ingestRoster(app, { managerId: e.userId, channel: e.channel, filename: f.name, bytes, eventId: `${e.eventId}:${f.id}` })).split('\n')[0]}`);
+          } catch (err) {
+            log(`roster ${f.name} failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      },
       onMessage: async (e) => {
         const { handleAgentMessage } = await import('./engine/agent.ts');
         await handleAgentMessage(app, e);

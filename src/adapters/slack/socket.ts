@@ -15,6 +15,14 @@ export interface SocketHandlers {
   onCommand(e: SlackCommandEvent): Promise<unknown>;
   onTeamJoin(e: SlackTeamJoinEvent): Promise<unknown>;
   onMessage?(e: SlackMessageEvent): Promise<unknown>;
+  onFileShare?(e: SlackFileShareEvent): Promise<unknown>;
+}
+
+export interface SlackFileShareEvent {
+  eventId: string;
+  userId: string;
+  channel: string;
+  files: { id: string; name: string; url: string }[];
 }
 
 type Log = (msg: string) => void;
@@ -88,6 +96,13 @@ export class SocketModeClient {
           await this.handlers.onTeamJoin({
             eventId: `evt:${p.event_id}`,
             user: { id: event.user?.id, email: event.user?.profile?.email, realName: event.user?.real_name ?? event.user?.profile?.real_name, isBot: event.user?.is_bot, deleted: event.user?.deleted },
+          });
+        } else if (event.type === 'message' && event.subtype === 'file_share' && event.channel_type === 'im' && !event.bot_id) {
+          await this.handlers.onFileShare?.({
+            eventId: `evt:${p.event_id}`,
+            userId: event.user,
+            channel: event.channel,
+            files: (event.files ?? []).map((f: Record<string, string>) => ({ id: f.id, name: f.name, url: f.url_private_download ?? f.url_private })),
           });
         } else if ((event.type === 'message' && event.channel_type === 'im' && !event.bot_id && !event.subtype) || event.type === 'app_mention') {
           await this.handlers.onMessage?.({ eventId: `evt:${p.event_id}`, userId: event.user, channel: event.channel, channelType: event.channel_type ?? 'channel', text: String(event.text ?? '') });

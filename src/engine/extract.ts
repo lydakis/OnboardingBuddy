@@ -3,10 +3,13 @@
 // keeps only facts whose excerpt appears verbatim in the named source document.
 import type { ChatMessage } from '../types.ts';
 
-let mockAgentReplyLazy: (user: string) => string = () => '{}';
-/** Set by agent.ts so the mock model can answer chat turns without an import cycle. */
+const mockResponders = new Map<string, (user: string) => string>();
+/** Other modules register mock replies for their prompt marker (avoids import cycles). */
+export function setMockResponder(marker: string, fn: (user: string) => string): void {
+  mockResponders.set(marker, fn);
+}
 export function setMockAgentResponder(fn: (user: string) => string): void {
-  mockAgentReplyLazy = fn;
+  setMockResponder('ONBOARDING_BUDDY_AGENT', fn);
 }
 
 export const FACT_NAMES = ['parcel_delivery_years', 'other_delivery_years', 'warehouse_years', 'license_class', 'equipment', 'clean_driving_record'] as const;
@@ -133,7 +136,7 @@ function yearsInLine(line: string): number | null {
 /** Stands in for the GB10 model in mock mode. Reads only the tagged documents. */
 export function heuristicResponder(messages: ChatMessage[]): string {
   const user = messages.find((m) => m.role === 'user')?.content ?? '';
-  if (messages[0]?.content.startsWith('ONBOARDING_BUDDY_AGENT')) return mockAgentReplyLazy(user);
+  for (const [marker, fn] of mockResponders) if (messages[0]?.content.startsWith(marker)) return fn(user);
   const q = user.match(/<questionnaire>\n?([\s\S]*?)\n?<\/questionnaire>/)?.[1] ?? '';
   const cv = user.match(/<cv>\n?([\s\S]*?)\n?<\/cv>/)?.[1] ?? '';
   const facts: Fact[] = [];

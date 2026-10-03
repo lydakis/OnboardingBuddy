@@ -30,7 +30,11 @@ if (kind === 'slack') {
   const [id, email, name] = args;
   app.mocks.slack.addUser({ id: id!, email, realName: name });
   console.log(await handleTeamJoin(app, { eventId: `cli-join-${Date.now()}`, user: { id: id!, email, realName: name } }));
+} else if (kind === 'roster') {
+  const [userId, file] = args;
+  const { ingestRoster } = await import('./engine/roster.ts');
+  console.log(await ingestRoster(app, { managerId: userId!, channel: userId!, filename: basename(file!), bytes: readFileSync(file!), eventId: `cli-roster-${Date.now()}` }));
 } else {
-  console.log('usage: cli slack <user> "<command>" | reply <from> <body file> [cv file] | join <slack id> <email> [name]');
+  console.log('usage: cli roster <manager id> <file.csv|file.xlsx> | slack <user> "<command>" | reply <from> <body file> [cv file] | join <slack id> <email> [name]');
 }
 app.close();

@@ -26,6 +26,17 @@
                  (alternative: Nemotron Nano, OpenAI-compatible on 127.0.0.1:8001)
 ```
 
+### Tool use inside the sandbox
+
+For manager chat and the day-1 quiz, the agent does real tool work inside the OpenShell sandbox:
+
+1. The host builds a **scoped snapshot**: all cases for a manager; one case's plan and the policy for a worker task, with no CV/email text and no contact details.
+2. `nemoclaw gb10-agent upload` puts `onboarding-tools.mjs` and the snapshot under `/sandbox/onboarding/<scope>/`.
+3. One OpenClaw turn (session `onboarding-manager-<id>` or `onboarding-<case>-quiz`) calls the tools with `exec`: `cases`, `case`, `plan`, `policy`, `blockers`, `quiz-check`.
+4. The reply comes back to the host, which re-validates it (`checkQuiz`, command allowlist) before anything is shown or sent. Every run is logged in `agent_runs` with model, tool calls, duration and whether a fallback was used.
+
+The sandbox has deny-by-default egress (verified: `https://example.com` unreachable) and no Slack, email or database credentials, so even a hijacked turn can only return text that the host then checks.
+
 ## Principles
 
 - **One runtime, isolated state.** One service process and one NemoClaw/OpenClaw agent. Each worker is a case row; every worker-owned table is keyed by `case_id`, and model calls use a per-case session id (`onboarding-FW-001-extract`, `onboarding-FW-001-chat`).

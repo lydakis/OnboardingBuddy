@@ -1,0 +1,11 @@
+[
+  { "field": "delivery", "button": "yes" },
+  { "field": "route_type", "button": "mixed" },
+  { "field": "delivery_app", "button": "yes" },
+  { "field": "area_familiarity", "button": "somewhat" },
+  { "field": "preferred_shift", "button": "early" },
+  { "field": "confidence", "button": "navigation=5" },
+  { "field": "confidence", "button": "scanning=5" },
+  { "field": "confidence", "button": "handoff=4" },
+  { "field": "confirm", "button": "yes" }
+]

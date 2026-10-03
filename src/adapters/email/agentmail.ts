@@ -2,7 +2,7 @@ import { DefiniteSendFailure } from '../../types.ts';
 import type { EmailAdapter, InboundEmail, OutboundEmail, SentEmail } from '../../types.ts';
 
 // LIVE AgentMail adapter over its REST API (docs/INTEGRATION-RESEARCH.md).
-// UNTESTED: no AgentMail credentials were available while building the demo.
+// Live outbound smoke verified; acceptance evidence is in docs/EMAIL-SETUP.md.
 // Polling uses the "unread" label; acknowledge() swaps it for "processed".
 export class AgentMailAdapter implements EmailAdapter {
   readonly mode = 'agentmail';
@@ -33,7 +33,9 @@ export class AgentMailAdapter implements EmailAdapter {
       ? await this.request<{ message_id: string; thread_id: string }>(
           'POST',
           `/inboxes/${this.inbox}/messages/${encodeURIComponent(message.replyToProviderMessageId)}/reply`,
-          { text: message.text, headers: { 'X-Onboarding-Action': message.idempotencyKey } },
+          // Keep the engine's allowlisted recipient even if the inbound email
+          // has a different Reply-To address. Replies must not inherit recipients.
+          { to: [message.to], text: message.text, headers: { 'X-Onboarding-Action': message.idempotencyKey } },
         )
       : await this.request<{ message_id: string; thread_id: string }>('POST', `/inboxes/${this.inbox}/messages/send`, {
           to: [message.to],
@@ -52,13 +54,10 @@ export class AgentMailAdapter implements EmailAdapter {
       const attachments: InboundEmail['attachments'] = [];
       for (const a of m.attachments ?? []) {
         let text: string | undefined;
-        if (/^text\//.test(a.content_type ?? '')) {
-          const meta = await this.request<{ download_url: string }>(
-            'GET',
-            `/inboxes/${this.inbox}/messages/${encodeURIComponent(m.message_id)}/attachments/${encodeURIComponent(a.attachment_id)}`,
-          );
-          const res = await fetch(meta.download_url, { signal: AbortSignal.timeout(20000) });
-          if (res.ok) text = (await res.text()).slice(0, 200_000);
+        try {
+          text = await this.attachmentText(m.message_id, a);
+        } catch {
+          text = undefined; // unreadable attachments become a review item, never a crash
         }
         attachments.push({ filename: a.filename ?? 'attachment', contentType: a.content_type ?? 'application/octet-stream', text });
       }
@@ -70,12 +69,43 @@ export class AgentMailAdapter implements EmailAdapter {
         from: Array.isArray(m.from) ? m.from[0] ?? '' : m.from,
         to: Array.isArray(m.to) ? m.to.join(',') : String(m.to ?? ''),
         subject: m.subject ?? '',
-        text: m.text ?? m.extracted_text ?? '',
+        text: m.extracted_text ?? m.text ?? '',
         attachments,
         receivedAt: m.timestamp ?? new Date().toISOString(),
       });
     }
     return out;
+  }
+
+  /** Text of a CV-like attachment: plain text directly, PDFs via unpdf, otherwise AgentMail's text_url if offered. */
+  private async attachmentText(messageId: string, a: { attachment_id: string; filename?: string; content_type?: string }): Promise<string | undefined> {
+    const type = a.content_type ?? '';
+    const isPdf = /pdf/i.test(type) || /\.pdf$/i.test(a.filename ?? '');
+    const isText = /^text\//.test(type) || /\.(txt|md)$/i.test(a.filename ?? '');
+    const meta = await this.request<{ download_url: string; text_url?: string; size?: number }>(
+      'GET',
+      `/inboxes/${this.inbox}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(a.attachment_id)}`,
+    );
+    if ((meta.size ?? 0) > 10 * 1024 * 1024) return undefined;
+    if (!isPdf && !isText && meta.text_url) {
+      const res = await fetch(meta.text_url, { signal: AbortSignal.timeout(20000) });
+      return res.ok ? (await res.text()).slice(0, 200_000) : undefined;
+    }
+    if (!isPdf && !isText) return undefined;
+    const res = await fetch(meta.download_url, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) return undefined;
+    if (isText) return (await res.text()).slice(0, 200_000);
+    const { extractText, getDocumentProxy } = await import('unpdf');
+    const pdf = await getDocumentProxy(new Uint8Array(await res.arrayBuffer()));
+    const { text } = await extractText(pdf, { mergePages: true });
+    return String(text).slice(0, 200_000);
+  }
+
+  async requeue(providerMessageId: string): Promise<void> {
+    await this.request('PATCH', `/inboxes/${this.inbox}/messages/${encodeURIComponent(providerMessageId)}`, {
+      add_labels: ['unread'],
+      remove_labels: ['processed'],
+    });
   }
 
   async acknowledge(providerMessageId: string): Promise<void> {
@@ -96,6 +126,7 @@ interface RawMessage {
   subject?: string;
   text?: string;
   extracted_text?: string;
+  html?: string;
   timestamp?: string;
   attachments?: { attachment_id: string; filename?: string; content_type?: string }[];
 }

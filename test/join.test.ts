@@ -1,16 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { command, makeApp } from './helpers.ts';
-import { runPhase1, runPhase2 } from '../src/demo/scenario.ts';
+import { runPhase1 } from '../src/demo/scenario.ts';
 import { getInvitation, handleTeamJoin } from '../src/engine/join.ts';
 import { ManualInviteAdapter } from '../src/adapters/invite/manual.ts';
 import type { InviteAdapter } from '../src/types.ts';
 
 const quiet = () => {};
+/** Intake done for Rosa (FW-001) and Theo (FW-002); nobody invited yet. */
 async function plansSent() {
   const app = await makeApp();
   await runPhase1(app, quiet);
-  await runPhase2(app, quiet);
   return app;
 }
 const ROSA = 'rosa.delgado@example.net';
@@ -51,9 +51,11 @@ test('ambiguous identity goes to manager review and links nobody until confirmed
 test('readiness checks and manager approval gate the invite', async () => {
   const app = await makeApp();
   await runPhase1(app, quiet);
-  assert.match((await command(app, 'U_MGR_DANA', 'invite FW-001')).text, /plan has not been sent/);
+  await command(app, 'U_MGR_DANA', 'start "Sam Rivera" sam.rivera@example.net');
+  assert.match((await command(app, 'U_MGR_DANA', 'invite FW-003')).text, /intake checklist is not complete/);
   assert.match((await command(app, 'U_DISPATCH_LEE', 'invite FW-001')).text, /only an authorized/);
   assert.equal(getInvitation(app, 'FW-001'), undefined);
+  assert.equal(getInvitation(app, 'FW-003'), undefined);
 });
 
 test('unsupported or failing invite capability falls back to manual without breaking earlier phases', async () => {
@@ -62,22 +64,22 @@ test('unsupported or failing invite capability falls back to manual without brea
     app.adapters.invite = adapter;
     const reply = await command(app, 'U_MGR_DANA', 'invite FW-001');
     assert.match(reply.text, /invite-sent FW-001/);
-    assert.equal(app.store.getCase('FW-001')!.status, 'plan_sent', 'earlier state untouched');
-    assert.match((await command(app, 'U_MGR_DANA', 'status FW-001')).text, /plan_sent/);
+    assert.equal(app.store.getCase('FW-001')!.status, 'intake_complete', 'earlier state untouched');
+    assert.match((await command(app, 'U_MGR_DANA', 'status FW-001')).text, /intake_complete/);
 
     await command(app, 'U_MGR_DANA', 'invite-sent FW-001');
     assert.equal(getInvitation(app, 'FW-001')!.state, 'sent');
     assert.equal(app.store.getCase('FW-001')!.slack_user_id, null);
     app.mocks.slack!.addUser({ id: 'U_ROSA', email: ROSA });
     assert.match((await command(app, 'U_MGR_DANA', 'verify-join FW-001')).text, /Confirmed/);
-    assert.equal(app.store.getCase('FW-001')!.status, 'slack_joined');
+    assert.equal(app.store.getCase('FW-001')!.status, 'questionnaire', 'joining starts the Slack questions');
   }
 });
 
 test('live connectors refuse recipients that are not on the allowlist', async () => {
   const app = await makeApp();
   const sent: string[] = [];
-  app.adapters.email = { mode: 'agentmail', send: async (m) => { sent.push(m.to); return { providerMessageId: '<p1>', threadId: 't1' }; }, poll: async () => [], acknowledge: async () => {} };
+  app.adapters.email = { mode: 'agentmail', send: async (m) => { sent.push(m.to); return { providerMessageId: '<p1>', threadId: 't1' }; }, poll: async () => [], acknowledge: async () => {}, requeue: async () => {} };
   app.config.liveRecipientAllowlist = ['rosa+demo@example.net'];
   await command(app, 'U_MGR_DANA', 'start "Real Person" someone.real@example.com');
   await command(app, 'U_MGR_DANA', 'start "Rosa" rosa+demo@example.net');

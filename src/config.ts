@@ -9,6 +9,9 @@ export interface Config {
   statusPort: number;
   statusHost: string;
   companyName: string;
+  agentName: string;
+  /** Adds an "answered by … on the GB10" footer to chat replies (off by default). */
+  agentSignature: boolean;
   managerSlackIds: string[];
   /** Live mode only emails/invites these addresses. Empty list = nobody. */
   liveRecipientAllowlist: string[];
@@ -40,6 +43,7 @@ export interface Config {
     adminUserToken?: string;
     teamId?: string;
   };
+  sandbox: { mode: 'off' | 'mock' | 'nemoclaw' };
   readiness: {
     requireIntakeComplete: boolean;
     requirePlanSent: boolean;
@@ -65,6 +69,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     statusPort: Number(env.OB_STATUS_PORT ?? 4600),
     statusHost: env.OB_STATUS_HOST ?? '127.0.0.1',
     companyName: env.OB_COMPANY_NAME ?? 'Fleetwing Express (fictional, FedEx-inspired demo)',
+    agentName: env.OB_AGENT_NAME ?? 'Fleetwing Onboarding Agent',
+    agentSignature: env.OB_AGENT_SIGNATURE === 'true',
     managerSlackIds: list(env.OB_MANAGER_SLACK_IDS ?? 'U_MGR_DANA'),
     liveRecipientAllowlist: list(env.OB_LIVE_RECIPIENT_ALLOWLIST).map((e) => e.toLowerCase()),
     newHireChannel: env.OB_NEW_HIRE_CHANNEL ?? '#new-couriers',
@@ -95,9 +101,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       adminUserToken: env.SLACK_ADMIN_USER_TOKEN || undefined,
       teamId: env.SLACK_TEAM_ID || undefined,
     },
+    sandbox: {
+      mode: oneOf('OB_SANDBOX_MODE', env.OB_SANDBOX_MODE, ['off', 'mock', 'nemoclaw'] as const, env.OB_LLM_MODE === 'nemoclaw' ? 'nemoclaw' : 'mock'),
+    },
     readiness: {
       requireIntakeComplete: env.OB_READY_REQUIRE_INTAKE !== 'false',
-      requirePlanSent: env.OB_READY_REQUIRE_PLAN_SENT !== 'false',
+      requirePlanSent: env.OB_READY_REQUIRE_PLAN_SENT === 'true',
     },
   };
   validateConfig(config);
@@ -154,6 +163,12 @@ export function describeModes(config: Config): Record<string, string> {
         : config.llm.mode === 'nemoclaw'
           ? `LOCAL NemoClaw sandbox ${config.llm.nemoclawSandbox} (OpenClaw, GB10)`
           : `LOCAL ${config.llm.model} @ ${new URL(config.llm.baseUrl!).host}`,
+    sandbox:
+      config.sandbox.mode === 'nemoclaw'
+        ? `LOCAL NemoClaw/OpenShell sandbox ${config.llm.nemoclawSandbox} (tools via exec, no egress)`
+        : config.sandbox.mode === 'mock'
+          ? 'MOCK (real tools, scripted agent)'
+          : 'off',
     invite:
       config.invite.mode === 'mock'
         ? 'MOCK (simulated workspace invite)'

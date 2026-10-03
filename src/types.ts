@@ -9,6 +9,8 @@ export type CaseStatus =
   | 'plan_sent' // approved plan emailed to worker
   | 'slack_invited'
   | 'slack_joined'
+  | 'questionnaire' // answering the tailored questions in a Slack DM
+  | 'questionnaire_complete'
   | 'training'
   | 'training_complete';
 
@@ -101,6 +103,8 @@ export interface EmailAdapter {
   /** Returns inbound messages not yet acknowledged. The engine dedupes regardless. */
   poll(): Promise<InboundEmail[]>;
   acknowledge(providerMessageId: string): Promise<void>;
+  /** Puts a message back in the unread queue so the next poll processes it again. */
+  requeue(providerMessageId: string): Promise<void>;
 }
 
 // ---- Slack adapter -------------------------------------------------------
@@ -112,11 +116,18 @@ export interface SlackButton {
   style?: 'primary' | 'danger';
 }
 
+export interface SlackButtonRow {
+  label: string;
+  buttons: SlackButton[];
+}
+
 export interface SlackPost {
   /** Channel id/name or a user id for a DM. */
   channel: string;
   text: string;
   buttons?: SlackButton[];
+  /** Labelled rows of buttons (e.g. 1–5 ratings), rendered after `buttons`. */
+  rows?: SlackButtonRow[];
   idempotencyKey: string;
 }
 
@@ -130,9 +141,13 @@ export interface SlackUser {
 
 export interface SlackAdapter {
   readonly mode: string;
-  post(message: SlackPost): Promise<{ ts: string }>;
+  post(message: SlackPost): Promise<{ ts: string; channel?: string }>;
+  /** chat.update: replace an earlier bot message in place (used to swap a "thinking" placeholder for the answer). */
+  update(channel: string, ts: string, text: string, buttons?: SlackButton[]): Promise<void>;
   lookupUserByEmail(email: string): Promise<SlackUser | null>;
   findUsersByName(name: string): Promise<SlackUser[]>;
+  /** Downloads a file shared with the bot (Slack: url_private_download, needs files:read). */
+  downloadFile(url: string): Promise<Buffer>;
   /** conversations.invite: add an EXISTING workspace member to a channel. */
   addToChannel(channel: string, userId: string): Promise<void>;
 }
@@ -188,4 +203,6 @@ export interface Adapters {
   slack: SlackAdapter;
   llm: LlmAdapter;
   invite: InviteAdapter;
+  /** Tool-using agent inside the NemoClaw/OpenShell sandbox (see src/adapters/sandbox). */
+  sandbox?: import('./adapters/sandbox/types.ts').SandboxAgent;
 }
