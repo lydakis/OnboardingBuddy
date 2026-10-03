@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Your Fleetwing Express courier training, step by step.">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Your Courier Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --paper:#F2F3EF; --surface:#FFFFFF; --sunk:#E8EAE4; --ink:#14181B; --ink-2:#4A535A; --ink-3:#6E777D; --line:#D6DAD2;
+  --hivis:#F2A900; --hivis-ink:#7A5000; --hivis-soft:#FCEBC0;
+  --ok:#2F7D4F; --ok-soft:#DDEFE3; --warn:#A65B00; --warn-soft:#F8E6CF; --bad:#B3261E; --bad-soft:#F6DEDC;
+  --label-bg:#FBFBF7; --label-ink:#111314; --label-line:#111314;
+  --road:#2A3036; --road-line:#F2A900;
+  --link:#2D5C9E;
+  --f-display:"Big Shoulders Display","Arial Narrow","Roboto Condensed",Impact,sans-serif;
+  --f-body:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0F1214; --surface:#171B1E; --sunk:#1E2327; --ink:#E9EBE6; --ink-2:#AAB2B7; --ink-3:#848D93; --line:#2B3236;
+  --hivis:#F2B533; --hivis-ink:#F2B533; --hivis-soft:#3A2D10;
+  --ok:#5DBB84; --ok-soft:#173226; --warn:#E39A3B; --warn-soft:#3A2A14; --bad:#F08A80; --bad-soft:#3D1D1A;
+  --label-bg:#F4F3EC; --label-ink:#111314; --label-line:#111314;
+  --road:#30383E; --road-line:#F2B533;
+  --link:#8DB0E6; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --paper:#0F1214; --surface:#171B1E; --sunk:#1E2327; --ink:#E9EBE6; --ink-2:#AAB2B7; --ink-3:#848D93; --line:#2B3236;
+  --hivis:#F2B533; --hivis-ink:#F2B533; --hivis-soft:#3A2D10;
+  --ok:#5DBB84; --ok-soft:#173226; --warn:#E39A3B; --warn-soft:#3A2A14; --bad:#F08A80; --bad-soft:#3D1D1A;
+  --label-bg:#F4F3EC; --label-ink:#111314; --label-line:#111314;
+  --road:#30383E; --road-line:#F2B533;
+  --link:#8DB0E6; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--f-body);-webkit-font-smoothing:antialiased;padding:0 16px env(safe-area-inset-bottom,0px);overflow-x:hidden}
+.wrap{max-width:760px;margin-inline:auto}
+h1,h2,h3{text-wrap:balance;margin:0}
+p{margin:0}
+button{font:inherit;color:inherit}
+.mono{font-family:var(--f-mono)}
+:focus-visible{outline:3px solid var(--hivis);outline-offset:2px}
+.eyebrow{font:600 12px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.h2{font:800 30px/1 var(--f-display);text-transform:uppercase;letter-spacing:.01em}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:12px 18px;border-radius:var(--r);font:600 16px/1.1 var(--f-body);border:1.5px solid var(--ink);color:var(--ink);background:transparent;cursor:pointer;text-align:center}
+.btn.primary{background:var(--hivis);border-color:var(--hivis);color:#14181B}
+.btn[disabled]{opacity:.42;cursor:not-allowed}
+.btn svg{width:18px;height:18px;flex:none}
+.ico{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:16px 8px}
+.brand{display:flex;align-items:center;gap:10px;font:800 20px/1 var(--f-display);text-transform:uppercase;letter-spacing:.03em}
+.brand small{display:block;font:500 10.5px/1.2 var(--f-mono);letter-spacing:.12em;color:var(--ink-3);margin-top:3px}
+.mark{width:30px;height:30px;flex:none}
+.ribbon{font:600 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;background:var(--hivis);color:#14181B;padding:7px 10px;border-radius:3px;transform:rotate(2deg);white-space:nowrap}
+
+/* hero */
+.hero{display:grid;gap:18px;padding-block:18px 8px}
+.hero h1{font:900 clamp(42px,11.5vw,72px)/.9 var(--f-display);text-transform:uppercase;letter-spacing:-.005em}
+.hero h1 .hl{background:linear-gradient(transparent 58%,var(--hivis) 58%,var(--hivis) 92%,transparent 92%);padding-inline:.04em}
+.label{background:var(--label-bg);color:var(--label-ink);border:2px solid var(--label-line);border-radius:4px;font-family:var(--f-mono);box-shadow:0 14px 30px -20px rgba(0,0,0,.45)}
+.label > div{padding:12px 14px;border-bottom:2px solid var(--label-line)}
+.label > div:last-child{border-bottom:0}
+.lbl-main{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}
+.lbl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font-size:12px}
+.lbl-grid small{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.65}
+.lbl-grid strong{font-weight:600;font-size:13.5px;line-height:1.25;display:block;overflow-wrap:anywhere}
+.ring{position:relative;width:96px;height:96px;flex:none}
+.ring svg{width:96px;height:96px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:9}
+.ring .bg{stroke:#E2E3DC}
+.ring .fg{stroke:#F2A900;stroke-linecap:butt;transition:stroke-dashoffset .8s ease}
+.ring .pct{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.ring .pct b{font:900 28px/1 var(--f-display)}
+.ring .pct span{font:500 9.5px/1.2 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;opacity:.7}
+.lbl-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px}
+.lbl-foot b{background:var(--label-ink);color:var(--label-bg);font:900 18px/1 var(--f-display);padding:5px 8px;letter-spacing:.05em;text-transform:uppercase}
+.bars{height:26px;flex:1;max-width:220px}
+
+.tailored{background:var(--hivis-soft);border:1.5px solid var(--ink);border-left:8px solid var(--hivis);border-radius:var(--r);padding:16px 16px 16px 16px;display:grid;gap:10px}
+.tailored h2{font:800 22px/1 var(--f-display);text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.tailored h2 svg{width:22px;height:22px}
+.tailored ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.tailored li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;font-size:15.5px}
+.tailored li::before{content:"";width:8px;height:8px;margin-top:8px;background:var(--ink);transform:rotate(45deg)}
+
+section.blk{padding-block:34px 8px}
+.sec-head{display:grid;gap:8px;margin-bottom:18px}
+.sec-head p{color:var(--ink-2)}
+
+/* route map */
+.rwrap{position:relative}
+.route{list-style:none;margin:0;padding:0;position:relative;display:grid;gap:14px;z-index:1}
+.road{position:absolute;left:0;top:0;width:44px;height:100%;z-index:0}
+.route > li{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:start}
+.week{align-items:center!important}
+.week span{grid-column:2;font:600 11.5px/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:10px}
+.week span::after{content:"";flex:1;height:1px;background:var(--line)}
+.week i{justify-self:center;width:30px;height:20px;border-radius:3px;background:var(--paper);border:1.5px solid var(--ink-3);font:600 10px/17px var(--f-mono);font-style:normal;text-align:center;color:var(--ink-2);position:relative;z-index:1}
+.pinwrap{position:relative;z-index:1;display:grid;justify-items:center;padding-top:12px}
+.pin{width:40px;height:40px;border-radius:50%;background:var(--surface);border:3px solid var(--ink);display:grid;place-items:center;font:600 14px/1 var(--f-mono);color:var(--ink)}
+.pin svg{width:20px;height:20px}
+.day.done .pin{background:var(--hivis);border-color:var(--hivis);color:#14181B}
+.day.next .pin{border-color:var(--hivis);box-shadow:0 0 0 4px color-mix(in srgb,var(--hivis) 35%,transparent)}
+.dcard{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:12px;display:grid;gap:10px;min-width:0}
+.day.next .dcard{border-color:var(--ink)}
+.day.done .dcard{border-color:var(--hivis);background:linear-gradient(var(--hivis-soft),var(--hivis-soft)) top/100% 4px no-repeat,var(--surface)}
+.dhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.dhead h3{font:800 24px/1 var(--f-display);text-transform:uppercase;letter-spacing:.02em}
+.tag{font:600 10.5px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;padding:5px 7px;border-radius:3px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+.tag.go{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.tag.ok{background:var(--hivis);color:#14181B;border-color:var(--hivis)}
+.chips{display:grid;gap:8px}
+.chip{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"c s" "t s";gap:6px 10px;align-items:center;width:100%;min-height:52px;padding:9px 10px;border:1.5px solid var(--ink);border-radius:var(--r);background:var(--paper);cursor:pointer;text-align:left}
+.chip:hover{background:var(--sunk)}
+.chip code{grid-area:c;justify-self:start;font:600 11.5px/1 var(--f-mono);padding:5px 6px;border:1.5px solid currentColor;border-radius:3px;white-space:nowrap}
+.chip .t{grid-area:t;font-weight:600;font-size:15px;line-height:1.25}
+.chip .t small{display:block;font:500 12px/1.3 var(--f-mono);color:var(--ink-3);margin-top:2px}
+.chip .st{grid-area:s;width:26px;height:26px;border-radius:50%;border:1.5px dashed var(--ink-3);display:grid;place-items:center}
+.chip .st svg{width:16px;height:16px}
+.chip.done{background:var(--hivis-soft);border-color:var(--hivis)}
+.chip.done code{background:var(--hivis);border-color:var(--hivis);color:#14181B}
+.chip.done .st{background:var(--hivis);border:0;color:#14181B}
+.stops{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;padding:10px;border:1.5px dashed var(--ink-3);border-radius:var(--r)}
+.stops svg.trk{width:64px;height:34px}
+.stops b{font:800 22px/1 var(--f-display);text-transform:uppercase}
+.stops small{display:block;font-size:13px;color:var(--ink-3);line-height:1.35;margin-top:2px}
+.tipbtn{width:100%;justify-content:space-between}
+.tipbtn .chev{transition:transform .2s}
+.tipbtn[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.tips{background:var(--label-bg);color:var(--label-ink);border:2px solid var(--label-line);border-radius:4px;padding:14px;display:grid;gap:12px}
+.tips h4{margin:0;font:800 20px/1 var(--f-display);text-transform:uppercase}
+.tips ul{margin:0;padding:0;list-style:none;display:grid;gap:9px}
+.tips li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;font-size:15px}
+.tips li svg{width:20px;height:20px;margin-top:2px}
+.tips .btn{border-color:var(--label-ink);color:var(--label-ink)}
+.tips .btn.primary{color:#14181B;border-color:#F2A900;background:#F2A900}
+.rest{color:var(--ink-3);font-size:14.5px}
+.finish .pin{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.finish .dcard{border-style:dashed}
+.finish p{color:var(--ink-2);font-size:14.5px}
+
+/* badges */
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
+.badge{display:grid;justify-items:center;gap:6px;padding:12px 6px;border:1.5px dashed var(--line);border-radius:var(--r);background:transparent;cursor:pointer;min-height:48px;text-align:center}
+.badge svg{width:56px;height:56px}
+.badge code{font:600 11px/1 var(--f-mono)}
+.badge span{font-size:12px;color:var(--ink-3);line-height:1.25}
+.badge .hex{fill:var(--sunk);stroke:var(--ink-3);stroke-width:2;stroke-dasharray:4 3}
+.badge .bi{color:var(--ink-3)}
+.badge.got{border:1.5px solid var(--ink);background:var(--surface)}
+.badge.got .hex{fill:var(--hivis);stroke:var(--ink);stroke-dasharray:none}
+.badge.got .bi{color:#14181B}
+.badge.got span{color:var(--ink-2)}
+.allset{margin-top:14px;padding:14px;border-radius:var(--r);background:var(--ink);color:var(--paper);display:flex;gap:12px;align-items:center}
+.allset svg{width:30px;height:30px;flex:none;color:var(--hivis)}
+.allset b{font:800 22px/1 var(--f-display);text-transform:uppercase;display:block}
+
+.note{margin:36px 0 0;padding:16px 0 40px;border-top:1px solid var(--line);color:var(--ink-2);font-size:14.5px;display:grid;gap:6px}
+.note .mono{font-size:11.5px;color:var(--ink-3);letter-spacing:.06em}
+
+/* lesson */
+.lbar{position:sticky;top:0;z-index:5;background:var(--paper);margin-inline:-16px;padding:10px 16px 0;border-bottom:1px solid var(--line)}
+.lbar-in{max-width:760px;margin-inline:auto;display:flex;align-items:center;gap:10px;padding-bottom:10px}
+.back{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:8px 12px 8px 8px;border:1.5px solid var(--line);border-radius:var(--r);background:var(--surface);cursor:pointer;font-weight:600;font-size:14.5px}
+.back svg{width:18px;height:18px}
+.lbar code{font:600 12px/1 var(--f-mono);margin-left:auto;color:var(--ink-2)}
+.prog{height:6px;background:var(--sunk);max-width:760px;margin-inline:auto;position:relative;overflow:hidden}
+.prog i{position:absolute;inset:0 auto 0 0;background:var(--hivis);width:0;transition:width .35s ease}
+.lhead{padding-block:22px 16px;display:grid;gap:10px}
+.lhead h1{font:900 clamp(34px,9vw,52px)/.92 var(--f-display);text-transform:uppercase}
+.lhead .why{font-size:17px;color:var(--ink-2)}
+.lmeta{display:flex;gap:8px;flex-wrap:wrap}
+.lmeta .tag{background:var(--surface)}
+.step{background:var(--surface);border:1.5px solid var(--ink);border-radius:var(--r);padding:18px 16px;display:grid;gap:14px}
+.step h2{font:800 26px/1.02 var(--f-display);text-transform:uppercase}
+.step h2:focus{outline:none}
+.step p.lead{font-size:16.5px;color:var(--ink-2)}
+.kp-ico{width:76px;height:76px;border-radius:8px;background:var(--hivis-soft);border:1.5px solid var(--ink);display:grid;place-items:center}
+.kp-ico svg{width:44px;height:44px}
+.dots{display:flex;gap:6px}
+.dots i{width:22px;height:5px;border-radius:2px;background:var(--line)}
+.dots i.on{background:var(--hivis)}
+.dots i.seen{background:var(--ink-3)}
+.choices{display:grid;gap:10px}
+.choice{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:start;width:100%;min-height:52px;padding:12px;border:1.5px solid var(--line);border-radius:var(--r);background:var(--paper);cursor:pointer;text-align:left;font-size:15.5px;line-height:1.4}
+.choice:hover:not([disabled]){border-color:var(--ink)}
+.choice .k{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--ink-3);display:grid;place-items:center;font:600 12px/1 var(--f-mono)}
+.choice.right{border-color:var(--ok);background:var(--ok-soft)}
+.choice.right .k{background:var(--ok);border-color:var(--ok);color:#fff}
+.choice.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.choice.wrong .k{background:var(--bad);border-color:var(--bad);color:#fff}
+.choice[disabled]{cursor:default}
+.choice[disabled]:not(.right):not(.wrong){opacity:.6}
+.fb{border-radius:var(--r);padding:12px 14px;font-size:15px;display:grid;gap:4px}
+.fb:empty{display:none}
+.fb b{font:800 18px/1 var(--f-display);text-transform:uppercase}
+.fb.good{background:var(--ok-soft);border:1.5px solid var(--ok)}
+.fb.good b{color:var(--ok)}
+.fb.bad{background:var(--bad-soft);border:1.5px solid var(--bad)}
+.fb.bad b{color:var(--bad)}
+.situ{background:var(--label-bg);color:var(--label-ink);border:2px solid var(--label-line);border-radius:4px;padding:12px 14px;font-size:15.5px}
+.situ small{display:block;font:600 10.5px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;opacity:.6;margin-bottom:6px}
+.lnav{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;padding-block:16px 40px}
+
+/* truck inspection */
+.truck{width:100%;height:auto;display:block;background:var(--sunk);border-radius:var(--r)}
+.truck .body{fill:var(--surface);stroke:var(--ink);stroke-width:2.5}
+.truck .dark{fill:var(--ink)}
+.truck .glass{fill:var(--sunk);stroke:var(--ink);stroke-width:2}
+.hs{cursor:pointer}
+.hs circle.ring2{fill:var(--hivis);stroke:#14181B;stroke-width:2}
+.hs text{font:700 12px var(--f-mono);fill:#14181B;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.hs.ok circle.ring2{fill:var(--ok);stroke:var(--ok)}
+.hs.ok text{fill:#fff}
+@media (prefers-reduced-motion:no-preference){ .hs:not(.ok) circle.ring2{animation:hsp 1.8s ease-in-out infinite} @keyframes hsp{50%{stroke-width:5}} }
+.parts{display:grid;gap:8px}
+.part{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start;width:100%;min-height:48px;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r);background:var(--paper);cursor:pointer;text-align:left}
+.part .n{width:26px;height:26px;border-radius:50%;background:var(--hivis);color:#14181B;display:grid;place-items:center;font:700 12px/1 var(--f-mono)}
+.part b{display:block;font-size:15px}
+.part small{display:block;color:var(--ink-2);font-size:14px;line-height:1.4;margin-top:3px}
+.part[aria-pressed="true"]{border-color:var(--ok);background:var(--ok-soft)}
+.part[aria-pressed="true"] .n{background:var(--ok);color:#fff}
+.count{font:600 12px/1 var(--f-mono);letter-spacing:.08em;color:var(--ink-2)}
+
+/* sequence */
+.seqmap{width:100%;height:auto;display:block;border-radius:var(--r);background:var(--sunk);border:1.5px solid var(--line)}
+.seqmap .blocks rect{fill:var(--surface);stroke:var(--line)}
+.seqmap .st{cursor:pointer}
+.seqmap .st circle{fill:var(--surface);stroke:var(--ink);stroke-width:2.5}
+.seqmap .st.picked circle{fill:var(--hivis);stroke:#14181B}
+.seqmap .st.pri circle{stroke-dasharray:4 3}
+.seqmap text{font:700 13px var(--f-mono);text-anchor:middle;dominant-baseline:central;fill:var(--ink);pointer-events:none}
+.seqmap .st.picked text{fill:#14181B}
+.seqmap .path{fill:none;stroke:var(--hivis);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 8}
+.seqbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sb{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:center;min-height:52px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--r);background:var(--paper);cursor:pointer;text-align:left;font-size:14px;line-height:1.25}
+.sb .k{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--ink);display:grid;place-items:center;font:700 12px/1 var(--f-mono)}
+.sb[aria-pressed="true"]{border-color:var(--hivis);background:var(--hivis-soft)}
+.sb[aria-pressed="true"] .k{background:var(--hivis);border-color:var(--hivis);color:#14181B}
+.sb small{display:block;color:var(--ink-3);font-size:12px}
+.seqline{font:600 14px/1.4 var(--f-mono);padding:10px 12px;border-radius:var(--r);background:var(--sunk);overflow-wrap:anywhere}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row .btn{flex:1}
+
+/* ask list */
+.ask{display:grid;gap:8px}
+.ask label{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:start;padding:12px;border:1.5px solid var(--line);border-radius:var(--r);background:var(--paper);cursor:pointer;font-size:15px;line-height:1.4;min-height:48px}
+.ask input{width:22px;height:22px;margin:0;accent-color:#F2A900}
+.ask label:has(input:checked){border-color:var(--hivis);background:var(--hivis-soft)}
+
+/* done */
+.done-step{text-align:center;justify-items:center;padding-block:28px}
+.stamp{display:inline-grid;gap:4px;padding:12px 18px;border:4px solid var(--hivis-ink);outline:2px solid var(--hivis-ink);outline-offset:4px;color:var(--hivis-ink);border-radius:6px;transform:rotate(-7deg);margin:14px 0 10px}
+.stamp b{font:900 34px/.9 var(--f-display);text-transform:uppercase;letter-spacing:.04em}
+.stamp span{font:600 11.5px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase}
+@media (prefers-reduced-motion:no-preference){
+  .stamp.go{animation:stamp .55s cubic-bezier(.2,.9,.3,1.2) both}
+  @keyframes stamp{0%{opacity:0;transform:scale(2.4) rotate(-14deg)}60%{opacity:1;transform:scale(.94) rotate(-6deg)}100%{transform:scale(1) rotate(-7deg)}}
+  .day.next .pin{animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--hivis) 12%,transparent)}}
+  .view{animation:fade .25s ease both}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}}
+}
+.done-step .earned{display:flex;gap:10px;align-items:center;justify-content:center;font-size:15px;color:var(--ink-2)}
+.done-step .earned svg{width:46px;height:46px}
+.done-step .acts{display:grid;gap:10px;width:100%;max-width:360px;margin-top:8px}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:50;overflow:hidden}
+.confetti i{position:absolute;top:-12px;width:8px;height:12px;border-radius:1px}
+
+@media (min-width:640px){
+  body{padding-inline:24px}
+  .lbar{margin-inline:-24px;padding-inline:24px}
+  .hero{padding-top:30px}
+  .step{padding:24px}
+  .seqbtns{grid-template-columns:1fr 1fr 1fr}
+  .chips{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="wing" viewBox="0 0 32 32"><path d="M3 21c6-1 11-4 15-9l3-4 2 3c-1 5-5 10-11 12l-6 1z" fill="currentColor"/><path d="M14 25c5 0 10-2 13-7l2-3 1 2c-1 5-6 9-12 9z" fill="currentColor" opacity=".55"/></symbol>
+    <symbol id="trk" viewBox="0 0 64 34"><rect x="2" y="4" width="36" height="22" rx="2" fill="var(--hivis)" stroke="currentColor" stroke-width="2"/><path d="M38 11h12l8 8v7H38z" fill="var(--surface)" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M42 14h7l4 5h-11z" fill="currentColor" opacity=".25"/><circle cx="13" cy="27" r="4.5" fill="var(--surface)" stroke="currentColor" stroke-width="2.5"/><circle cx="48" cy="27" r="4.5" fill="var(--surface)" stroke="currentColor" stroke-width="2.5"/><path d="M8 11h14M8 16h20" stroke="#14181B" stroke-width="2" opacity=".45"/></symbol>
+  </defs>
+</svg>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><svg class="mark" aria-hidden="true" viewBox="0 0 30 30"><rect width="30" height="30" rx="6" fill="var(--hivis)"/><use href="#wing" x="2" y="1" width="26" height="26" style="color:#14181B"/></svg><div>Onboarding Buddy<small>FLEETWING EXPRESS</small></div></div>
+    <span class="ribbon" id="ribbon" hidden>Sample training</span>
+  </header>
+  <main id="home" class="view"></main>
+  <main id="lesson" class="view" hidden></main>
+</div>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+<script>
+(function(){
+"use strict";
+
+/* ---------- icons ---------- */
+var IC={
+ shield:'<path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+ diamond:'<path d="M12 2l10 10-10 10L2 12z"/><path d="M12 8v5M12 16v.5"/>',
+ alert:'<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.5"/>',
+ eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+ phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ coffee:'<path d="M4 9h12v5a5 5 0 01-5 5H9a5 5 0 01-5-5z"/><path d="M16 10h2a2 2 0 010 4h-2M8 3v3M12 3v3"/>',
+ truck:'<path d="M2 6h11v10H2zM13 9h4l3 3v4h-7z"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/>',
+ chat:'<path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/>',
+ scan:'<path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/>',
+ camera:'<path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/>',
+ list:'<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.5M4 12h.5M4 18h.5"/>',
+ battery:'<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 10v4M6 10v4M10 10v4"/>',
+ user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+ users:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.9 3-6 7-6s7 2.1 7 6"/><path d="M16 4.5a3.5 3.5 0 010 7M18 14c2.5.6 4 2.6 4 6"/>',
+ check:'<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+ tick:'<path d="M5 12.5l4.5 4.5L19 7"/>',
+ box:'<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+ lift:'<circle cx="12" cy="3.8" r="1.8"/><path d="M12 6v4M8 21l1.5-5 2.5-2 2.5 2L16 21"/><rect x="7.5" y="10" width="9" height="5" rx=".5"/>',
+ handtruck:'<path d="M5 3l3.5 15H20"/><circle cx="9" cy="20" r="1.8"/><rect x="10" y="10" width="8" height="7"/><rect x="11" y="4.5" width="6" height="5.5"/>',
+ pen:'<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+ map:'<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>',
+ pin:'<path d="M12 22s7-7 7-12a7 7 0 00-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>',
+ key:'<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l2 2M15 8l2 2"/>',
+ wheel:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
+ light:'<path d="M9 18h6M10 21h4M12 3a6 6 0 00-4 10.5c1 1 1 2 1 2.5h6c0-.5 0-1.5 1-2.5A6 6 0 0012 3z"/>',
+ mirror:'<rect x="3" y="5" width="12" height="14" rx="3"/><path d="M15 12h6"/>',
+ road:'<path d="M8 3L4 21M16 3l4 18M12 4v3M12 10v3M12 16v3"/>',
+ turn:'<path d="M6 21V12a5 5 0 015-5h8"/><path d="M15 3l4 4-4 4"/>',
+ note:'<path d="M5 3h10l4 4v14H5z"/><path d="M9 11h6M9 15h6M15 3v4h4"/>',
+ handoff:'<path d="M2 15h5l3 2h5a1.8 1.8 0 000-3.6H11"/><path d="M7 15l4-2"/><rect x="12" y="4" width="8" height="7"/>',
+ lock:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>',
+ reverse:'<path d="M20 12H5M10 6l-6 6 6 6"/>',
+ flag:'<path d="M5 21V4M5 4h12l-2 4 2 4H5"/>',
+ left:'<path d="M15 5l-7 7 7 7"/>',
+ down:'<path d="M6 9l6 6 6-6"/>',
+ spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',
+ star:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
+ sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M5 19l1.4-1.4M17.6 6.4L19 5"/>',
+ water:'<path d="M12 3s6 7 6 11a6 6 0 01-12 0c0-4 6-11 6-11z"/>'
+};
+function ico(n,cls){return '<svg class="ico'+(cls?' '+cls:'')+'" viewBox="0 0 24 24" aria-hidden="true">'+(IC[n]||IC.box)+'</svg>';}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+/* ---------- module library ---------- */
+var M={
+"SAFE-101":{title:"Safety, hazmat awareness and incident reporting",icon:"shield",
+ why:"Every shift ends with you going home in one piece. This is how Fleetwing keeps it that way.",
+ points:[
+  {i:"shield",h:"Safety beats speed, every time",t:"No stop count or delivery window is worth an injury. If a stop feels unsafe (a loose dog, an icy step, a blocked driveway), you can skip it and report it. Nobody will hold that against you."},
+  {i:"diamond",h:"Know the hazard diamonds",t:"Diamond-shaped labels mean regulated contents. Carry intact packages as normal, upright and secured. Never open, shake or re-tape one. If it is leaking, smells or is crushed, step back, don't touch it, and call dispatch."},
+  {i:"eye",h:"Read the stop before you step out",t:"Check traffic, pets, uneven ground and overhead hazards before you open the door. Park where you can see and be seen, set the parking brake and switch on your hazards."},
+  {i:"phone",h:"Report every incident, even small ones",t:"Near misses, scrapes, dog encounters, a rolled ankle: report it the same shift in the courier app or to your supervisor. Early reports protect you and the next courier on that route."}],
+ scenario:{s:"At a business pickup you notice one box has a damp corner and a sharp chemical smell. It has a diamond hazard label.",c:[
+  {t:"Wipe it dry and load it. You're already behind.",f:"Never handle a leaking hazmat package. Wiping it puts the substance on your hands and into your truck."},
+  {t:"Leave it where it is, keep people away, don't load it, and call dispatch.",f:"Exactly right. Keep your distance, don't touch it, and let dispatch send the right help.",best:true},
+  {t:"Re-tape the corner so it stops leaking, then load it.",f:"Re-taping hides the problem and means touching it. A damaged hazmat package stays where it is until dispatch says otherwise."}]},
+ q:[{q:"A package has a diamond hazard label and looks completely intact. What do you do?",o:["Refuse to carry it","Carry it as normal: upright, secured, scanned","Open it to check the contents"],a:1,e:"Intact labeled packages ship every day. The label tells you to handle with care and watch for damage, not to refuse it."},
+    {q:"You nearly slipped on a wet loading ramp but caught yourself. When do you report it?",o:["Only if someone saw it","Same shift, in the app or to your supervisor","At the end of the week"],a:1,e:"Near misses are the cheapest lessons. Reporting them the same day gets the ramp fixed before someone does get hurt."}]},
+
+"DOT-110":{title:"Hours-of-service and break rules",icon:"clock",
+ why:"Tired drivers make mistakes. Your hours and breaks are tracked to keep you and everyone around you safe.",
+ points:[
+  {i:"clock",h:"Your hours are logged",t:"Clock in when you start your pre-trip and clock out after your post-trip. The courier app records your on-duty time. Keep it accurate, and never work off the clock."},
+  {i:"coffee",h:"Breaks are part of the job",t:"Take your meal and rest breaks when they're scheduled, not 'when you catch up'. Your supervisor will show you Fleetwing's break schedule on your first day."},
+  {i:"lock",h:"Rest somewhere safe",t:"Take breaks where parking is legal and safe, with the truck locked and the cargo door secured. Not in a travel lane, a fire zone or someone's driveway."},
+  {i:"chat",h:"Running long? Say so early",t:"If you can see you'll run past your scheduled hours, message dispatch before it happens. They would much rather move stops than have you push through tired."}],
+ scenario:{s:"It's time for your scheduled break. You have 8 stops left and you're feeling good. You'd love to finish early.",c:[
+  {t:"Skip the break and power through the last 8 stops.",f:"Skipping breaks feels faster but fatigue builds quietly. Breaks are scheduled for a reason."},
+  {t:"Take your break in a safe, legal spot, then finish the route.",f:"That's the one. You come back sharper, and your log stays accurate.",best:true},
+  {t:"Eat while driving between stops to save time.",f:"Eating while driving splits your attention in a big vehicle. Park, eat, then drive."}]},
+ q:[{q:"Who tells you Fleetwing's break schedule?",o:["Another courier on your route","Your supervisor","You decide each day"],a:1,e:"Your supervisor walks you through the break schedule. If anything is unclear later, ask them, not the break room."},
+    {q:"You realize you're going to run past your scheduled hours. What's the best move?",o:["Keep going and fix the log later","Message dispatch now","Clock out and finish the last stops"],a:1,e:"Dispatch can reassign stops if they know early. Working off the clock is never an option."}]},
+
+"SCAN-120":{title:"Handheld scanner and proof of delivery",icon:"scan",
+ why:"Every scan is a promise kept. It's how the customer, dispatch and you all know where a package is.",
+ points:[
+  {i:"scan",h:"Scan at every touch",t:"Scan when you load, when you deliver and when anything goes wrong. A package without a scan is a package that's lost on paper, even if it's sitting on the porch."},
+  {i:"camera",h:"Photo proof that actually helps",t:"For no-signature deliveries, take a photo showing the package and a landmark: door number, mat or doorframe. No faces, no house interiors, no other people's mail."},
+  {i:"list",h:"Pick the right status",t:"Delivered, left at front door, customer not available, address problem, refused. The right status tells the customer what happened and sets up the next attempt."},
+  {i:"battery",h:"Start the day ready",t:"Before you leave the depot, check that you're logged in to your route and the battery is well charged. Grab a spare from the charging rack if it's low."}],
+ scenario:{s:"At the door, the barcode on a package is torn and the scanner won't read it.",c:[
+  {t:"Hand it over without scanning. The customer is right there.",f:"Then the system still thinks it's on your truck. The customer gets a 'not delivered' message for a package they're holding."},
+  {t:"Key in the tracking number by hand and flag the damaged label.",f:"Right. Manual entry keeps the record complete, and the flag helps the sort team spot label problems.",best:true},
+  {t:"Keep it on the truck and bring it back to the depot.",f:"The package is fine and the customer is waiting. Manual entry solves this in seconds."}]},
+ q:[{q:"What should a proof-of-delivery photo show?",o:["The customer's face","The package and a landmark like the door number","The inside of the home"],a:1,e:"A landmark proves where it was left. Faces and interiors are private and not needed."},
+    {q:"Nobody's home and the package needs a signature. Which status do you use?",o:["Delivered","Customer not available","Refused"],a:1,e:"'Customer not available' triggers a notice and redelivery options. 'Refused' means someone said no."}]},
+
+"APP-115":{title:"Fleetwing courier app basics",icon:"phone",
+ why:"The app is your route, your stop notes and your line to dispatch, all in your pocket.",
+ points:[
+  {i:"phone",h:"Log in before you roll",t:"Sign in with your Fleetwing ID, confirm your route number and your truck. If anything doesn't match what you were assigned, ask before you leave the yard."},
+  {i:"list",h:"Your stop list",t:"Stops appear in sequence. Tap a stop to see its details and delivery notes: gate codes, side doors, 'leave with reception', dogs on site."},
+  {i:"chat",h:"Message dispatch",t:"Use in-app messages for route questions and exceptions. In an emergency, call emergency services first, then let dispatch know."},
+  {i:"lock",h:"Hands-free while moving",t:"Mount your phone before you drive. Don't type or tap while the truck is moving. If you need the app, pull over or wait for your next stop."}],
+ scenario:{s:"You're driving between stops and the app pings with a new dispatch message.",c:[
+  {t:"Glance and reply quickly at the next red light.",f:"A red light isn't parked. Traffic moves, and your attention should be on the road."},
+  {t:"Read it once you're parked at your next stop.",f:"Right. A minute's wait is fine. If it's urgent, dispatch will call.",best:true},
+  {t:"Ignore messages until the end of the day.",f:"Dispatch messages often change your route. Check them at every stop."}]},
+ q:[{q:"Where do you find a customer's gate code?",o:["In the stop's delivery notes","Call dispatch every time","Ask a neighbor"],a:0,e:"Delivery notes travel with the stop. Check them before you get out of the truck."},
+    {q:"When can you tap and type in the app?",o:["At red lights","On quiet roads","Only when parked"],a:2,e:"Mounted and hands-free while moving; tapping and typing only when parked."}]},
+
+"SCAN-125":{title:"Scanner practice lab with a mentor",icon:"scan",
+ why:"Practice the tricky scans at the depot, so they're easy at the doorstep.",
+ points:[
+  {i:"users",h:"Your mentor runs the lab",t:"You'll work at a practice station with sample packages. Your mentor demonstrates each flow, then hands you the scanner."},
+  {i:"alert",h:"Practice the exceptions",t:"Damaged label, missing package, wrong address, refused delivery, nobody home. Exceptions are where new couriers lose time, so this is where you practice most."},
+  {i:"camera",h:"Nail the photo",t:"Take proof-of-delivery photos in bright light, shade and dark. Your mentor will show you what a good one looks like."},
+  {i:"check",h:"Repeat until it clicks",t:"Run each flow until you can do it without looking at notes. Ask as many questions as you like. That's what the lab is for."}],
+ scenario:{s:"In the lab, your mentor hands you a package with two different shipping labels on it.",c:[
+  {t:"Scan whichever label looks newer.",f:"Guessing could send it to the wrong place. Two labels is an exception."},
+  {t:"Stop and flag it as a label exception, then ask your mentor how to handle it.",f:"Exactly. Mismatched labels get flagged, not guessed. That's the lesson your mentor is setting up.",best:true},
+  {t:"Peel off one label so only one remains.",f:"Removing a label destroys information dispatch may need. Flag it instead."}]},
+ q:[{q:"What's the main point of the practice lab?",o:["Practice exception scans before you meet them on route","Get a faster scanner","Skip the ride-along"],a:0,e:"Exceptions are rare enough to be confusing on the doorstep. The lab makes them routine."},
+    {q:"On route, you find a package with two different labels. What now?",o:["Deliver to the first address","Flag a label exception and contact dispatch","Leave it at the depot door"],a:1,e:"Flag it and let dispatch confirm the right address. Same move as in the lab."}]},
+
+"LIFT-130":{title:"Safe lifting and hand-truck technique",icon:"lift",
+ why:"Backs don't come with spares. Good technique keeps you lifting all season.",
+ points:[
+  {i:"box",h:"Test before you lift",t:"Tip a corner to feel the weight before you commit. Check the label for heavy or team-lift markings. Surprises are what hurt people."},
+  {i:"lift",h:"Lift with your legs",t:"Feet shoulder-width apart, bend your knees, keep your back straight and the load close. To turn, pivot with your feet. Don't twist at the waist."},
+  {i:"handtruck",h:"Let the hand truck do the work",t:"Heaviest boxes on the bottom, strap tall stacks, tilt back to the balance point. Push rather than pull, and take steps one at a time."},
+  {i:"users",h:"Ask for a team lift",t:"For very heavy or awkward items, get help. Your supervisor will show you Fleetwing's team-lift guidance. Asking is part of doing it right."}],
+ scenario:{s:"A bulky box on a high shelf in the cargo area turns out heavier than it looked.",c:[
+  {t:"Yank it down quickly before it gets away from you.",f:"Fast pulls from overhead are how shoulders and backs get hurt."},
+  {t:"Slide it to the shelf edge, test the weight, and bring it down close to your body, or get help.",f:"Right. Control the load the whole way, and don't be shy about a second pair of hands.",best:true},
+  {t:"Climb the shelving to get a better grip.",f:"Shelving isn't a ladder. Slide it toward you from the floor."}]},
+ q:[{q:"You need to turn while carrying a box. You should:",o:["Twist at the waist","Pivot with your feet","Toss it to where it needs to go"],a:1,e:"Twisting under load strains your lower back. Move your feet and your body follows."},
+    {q:"Loading a hand truck, the heaviest boxes go:",o:["On top","In the middle","On the bottom"],a:2,e:"Heavy on the bottom keeps the center of gravity low and the stack stable."}]},
+
+"CUST-140":{title:"Customer handoff, signatures and damaged-package reporting",icon:"handoff",
+ why:"For most customers, you are Fleetwing. A good handoff takes thirty seconds and makes their day.",
+ points:[
+  {i:"handoff",h:"Greet, confirm, hand over",t:"Smile, confirm the name or address, hand it over. Don't read personal details out loud for neighbors to hear."},
+  {i:"pen",h:"Signatures",t:"Signature-required packages go only to an adult at the delivery address. Never sign on a customer's behalf, even if they ask."},
+  {i:"box",h:"Damaged packages",t:"Photograph the damage, scan the damage exception and let the customer decide whether to accept or refuse it. Never hide damage."},
+  {i:"chat",h:"Stay calm with upset customers",t:"Listen, don't argue, and point them to customer support. Log the interaction in the app so the team can follow up."}],
+ scenario:{s:"A customer calls out from next door: 'That's mine, can you just leave it here with my neighbor?' The package requires a signature.",c:[
+  {t:"Leave it with the neighbor. The customer said it's fine.",f:"A signature package has to be signed for by an adult at the delivery address."},
+  {t:"Explain it needs a signature at the address. Deliver it there if they can sign now, otherwise leave a notice.",f:"Right. Friendly, clear, and the package stays protected.",best:true},
+  {t:"Sign for them and leave it on the step.",f:"Never sign on a customer's behalf. That removes the protection the sender paid for."}]},
+ q:[{q:"A box at the door is visibly crushed. You:",o:["Turn it so the damage faces away","Photo it, scan the damage exception, and let the customer decide","Take it back without saying anything"],a:1,e:"Being upfront protects the customer and you. The photo and scan start the claim."},
+    {q:"A customer asks you to sign for them. Can you?",o:["Yes, if they ask nicely","No, signatures come from an adult at the address","Only for small packages"],a:1,e:"The signature is the customer's own confirmation. It can't come from you."}]},
+
+"AREA-150":{title:"Depot area orientation: zones, docks and tricky addresses",icon:"map",
+ why:"Knowing where everything lives saves minutes every morning and keeps the dock safe.",
+ points:[
+  {i:"map",h:"Zones and sort aisles",t:"Each route has a zone and an aisle. The color tag on the shelf matches your route sheet. Learn yours on day one."},
+  {i:"truck",h:"Docks and yard traffic",t:"Walk only in painted pedestrian lanes. Never walk behind a reversing truck. Make eye contact with forklift drivers before you cross their path."},
+  {i:"pin",h:"Tricky addresses",t:"Apartment complexes, business parks and rural lanes all have quirks. Check stop notes, and add your own when you learn something new."},
+  {i:"key",h:"Keys, scanners and sign-out",t:"Pick up keys, scanner and fuel card at the dispatch window. Sign them out in the morning and back in before you leave."}],
+ scenario:{s:"You need to cross the yard to your truck. Another truck is reversing toward a dock nearby.",c:[
+  {t:"Walk quickly behind it. It's moving slowly.",f:"Reversing trucks have huge blind spots. 'Slow' still crushes."},
+  {t:"Stop in the pedestrian lane and wait until it's parked.",f:"Right. Thirty seconds of waiting is nothing.",best:true},
+  {t:"Wave at the driver and keep walking.",f:"They may not see the wave. Wait until the truck stops."}]},
+ q:[{q:"How do you find your route's packages in the sort area?",o:["Ask whoever's nearby","Match the zone and aisle tag to your route sheet","Check every aisle"],a:1,e:"The tags exist so you can go straight to your shelf."},
+    {q:"You figure out a tricky address. What's the best next step?",o:["Keep it to yourself","Add a note to the stop in the app","Tell the customer to move"],a:1,e:"Your note saves the next courier the same ten minutes."}]},
+
+"VEH-210":{title:"Pre-trip box truck inspection",icon:"truck",extra:"inspect",
+ why:"Five minutes in the yard can save you a breakdown, a ticket or a crash.",
+ points:[
+  {i:"eye",h:"Walk around, every time",t:"Same order every day: front, driver side, rear, passenger side, then the cab. A fixed order means you don't skip anything when you're in a hurry."},
+  {i:"wheel",h:"Tires and wheels",t:"Look for low tires, cuts, bulges and anything stuck in the tread. Check that the lug nuts look secure."},
+  {i:"light",h:"Lights and mirrors",t:"Test headlights, turn signals, brake lights and hazards. Clean and adjust your mirrors before you leave the yard."},
+  {i:"alert",h:"Found a problem? Don't drive it",t:"Report defects in the app and tell your supervisor. A truck with a safety defect stays parked until it's fixed or swapped."}],
+ scenario:{s:"During your pre-trip, one brake light doesn't come on.",c:[
+  {t:"Drive anyway. It's daylight and the other one works.",f:"A brake light is safety equipment. The driver behind you needs it most in daylight traffic."},
+  {t:"Report it and don't take the truck until it's fixed or swapped.",f:"Exactly. Report, tag it out, and dispatch sorts out a truck.",best:true},
+  {t:"Cover it with red tape and go.",f:"Tape doesn't light up. Report the defect."}]},
+ q:[{q:"When do you do your walk-around?",o:["Once a week","Before every shift, before you leave the yard","Only if something looks wrong"],a:1,e:"Every shift. Trucks get used by other couriers and things change overnight."},
+    {q:"You spot a bulge on a tire sidewall. You:",o:["Drive gently","Report it and don't drive the truck","Let some air out"],a:1,e:"A sidewall bulge can fail suddenly. That truck stays parked."}]},
+
+"DRV-220":{title:"Defensive driving course",icon:"road",
+ why:"A box truck is taller, heavier and slower to stop than your car. Drive for everyone else's mistakes too.",
+ points:[
+  {i:"road",h:"Leave space",t:"Give yourself much more following distance than you would in a car, and more again in rain, fog or dark. Space is your reaction time."},
+  {i:"mirror",h:"Mind the blind spots",t:"Box trucks have big no-zones beside and behind them. Check mirrors every few seconds. If you can't see a driver's mirror, they can't see you."},
+  {i:"reverse",h:"Back up as little as possible",t:"Plan stops so you can pull forward out. When you must reverse: Get Out And Look (G.O.A.L.), go slowly, and use a spotter if one is available."},
+  {i:"turn",h:"Wide right turns",t:"You may need to swing wide. Signal early, check your right mirror and watch for cyclists and pedestrians on the inside."}],
+ scenario:{s:"You missed the driveway. The stop is now 50 meters behind you on a quiet residential street.",c:[
+  {t:"Reverse down the street using your mirrors.",f:"Long reverses on a public street are where backing crashes happen. Kids and cars appear fast."},
+  {t:"Continue, turn around somewhere safe, and come back forward.",f:"Right. A minute longer and no backing risk.",best:true},
+  {t:"Park in the travel lane and walk back.",f:"Blocking the travel lane creates a hazard for everyone else. Find a safe spot or loop around."}]},
+ q:[{q:"What does G.O.A.L. stand for?",o:["Go On After Looking","Get Out And Look","Give Others A Lane"],a:1,e:"Get Out And Look before you reverse. Mirrors don't show everything."},
+    {q:"You can't see a car driver's side mirror. That means:",o:["The driver can't see you either","You're at a safe distance","Their mirror is broken"],a:0,e:"If you can't see their mirror, you're in their blind spot. Adjust your position."}]},
+
+"ROUTE-310":{title:"Route sequencing in the Fleetwing dispatch app",icon:"map",extra:"sequence",
+ why:"A smart sequence means fewer miles, fewer U-turns and more time for the stops that matter.",
+ points:[
+  {i:"list",h:"Dispatch sets the base order",t:"The dispatch app suggests a stop sequence. You can adjust it when you have a good reason, and the app keeps dispatch in the loop."},
+  {i:"clock",h:"Commit times come first",t:"Priority packages and stops with a delivery window go early. Everything else fits around them."},
+  {i:"road",h:"Loop, don't zigzag",t:"Work through the area in one sweep. Avoid crossing busy roads again and again, and favor turns that don't cut across traffic."},
+  {i:"box",h:"Load to match",t:"Load your truck in sequence order so stop 1 is right by the door. A good load saves more time than a fast walk."}],
+ scenario:{s:"A business on your route closes at noon, but the app has it as stop 40, which you'd reach mid-afternoon.",c:[
+  {t:"Keep the order. The app knows best.",f:"The app doesn't always know opening hours. You'd arrive to a locked door."},
+  {t:"Move it earlier in the app so you arrive before noon, and tell dispatch if that pushes a commit stop.",f:"Right. Adjust with a reason, and keep dispatch informed.",best:true},
+  {t:"Skip it and bring the package back tomorrow.",f:"That's a failed delivery you could have avoided with one change."}]},
+ q:[{q:"Which stop goes first?",o:["The closest stop to the depot","A priority package with a morning commit","The biggest package"],a:1,e:"Commit times anchor the sequence. Build the loop around them."},
+    {q:"How should you load your truck?",o:["Biggest boxes by the door","In delivery sequence order","However it fits"],a:1,e:"Sequence order means you're never digging for the next package."}]},
+
+"RIDE-300":{title:"Mentor ride-along",icon:"users",extra:"ask",
+ why:"A day beside an experienced courier is the fastest way to see how everything fits together.",
+ points:[
+  {i:"users",h:"What to expect",t:"You'll ride with a mentor on a real route. They'll drive and deliver at first, then hand you stops as you get comfortable."},
+  {i:"eye",h:"What to watch",t:"How they load the truck, choose where to park, approach a door, handle exceptions and talk to customers. The small habits are the point."},
+  {i:"handoff",h:"Take stops yourself",t:"When your mentor offers a stop, take it. Mistakes are cheap today, with someone right there to help."},
+  {i:"note",h:"Keep a list of questions",t:"The next step has questions worth asking. Check them off as you go, and add your own notes in the app."}],
+ scenario:{s:"Your mentor does something differently from how training described it.",c:[
+  {t:"Copy it quietly. They're more experienced.",f:"Maybe they have a good reason, or maybe it's a habit to avoid. Asking is how you find out."},
+  {t:"Ask them why, and check with your supervisor if it's about safety.",f:"Right. Curious, respectful, and safety stays non-negotiable.",best:true},
+  {t:"Report them straight away without asking.",f:"Start with a question. There's often a good local reason, and if not, your supervisor can help."}]},
+ q:[{q:"What's the best use of a ride-along day?",o:["Watch quietly and stay out of the way","Watch, ask questions and take stops yourself","Catch up on app setup"],a:1,e:"You learn fastest by doing, with a mentor right next to you."},
+    {q:"You don't understand how your mentor handled an exception. When do you ask?",o:["Right after the stop","At the end of the week","Never; you'll figure it out"],a:0,e:"Ask while it's fresh. Your mentor expects questions."}]}
+};
+
+var INSPECT=[
+ {k:"tires",x:72,y:150,h:"Tires and wheels",t:"Tread looks even, no cuts or bulges, nothing stuck in it. Lug nuts all present."},
+ {k:"head",x:300,y:112,h:"Headlights and signals",t:"Low and high beams, front turn signals and hazards all work. Lenses clean."},
+ {k:"mirror",x:236,y:58,h:"Mirrors",t:"Not cracked, firmly mounted, clean, adjusted from the driver's seat."},
+ {k:"glass",x:270,y:80,h:"Windshield and wipers",t:"No big chips in your line of sight. Wipers clear, washer fluid sprays."},
+ {k:"fluids",x:296,y:138,h:"Fluids and leaks",t:"No puddles under the truck. Check the fluid levels your supervisor shows you."},
+ {k:"rear",x:22,y:112,h:"Brake and tail lights",t:"Brake lights, tail lights and rear signals all work. Use the reflection in a window or ask a coworker."},
+ {k:"door",x:110,y:62,h:"Cargo door and ramp",t:"Door opens and latches cleanly. Ramp or step secure, cargo area clear of loose items."}
+];
+
+var SEQ={
+ depot:{x:40,y:206},
+ stops:[
+  {k:"A",x:72,y:138,n:"Pharmacy",d:"Priority, by 10:30",pri:true},
+  {k:"B",x:150,y:190,n:"Corner café",d:"Regular"},
+  {k:"C",x:242,y:176,n:"Dental office",d:"Regular"},
+  {k:"D",x:286,y:94,n:"Hardware store",d:"Regular"},
+  {k:"E",x:180,y:52,n:"Library",d:"Regular"}],
+ ok:["ABCDE","AEDCB"]
+};
+
+var ASK=["How do you load the truck so the first stops are easy to reach?","Where do you usually take your break on this route?","Which addresses are tricky, and why?","How do you handle dogs at a stop?","What do you do when you're running behind?","How do you pick a parking spot at a busy stop?","What happens to packages you couldn't deliver?","What's one habit that saves you the most time?"];
+
+var TIPS=[
+ [["box","Load in stop order: first stops nearest the door."],["water","Water bottle full, snack in the cab, phone charged."],["eye","Do your walk-around before you leave the yard."]],
+ [["sun","Check the weather and dress in layers you can shed."],["scan","Scan every package at every stop, no exceptions."],["chat","Running behind? Message dispatch early, not at the end."]],
+ [["truck","Park where you can see and be seen, hazards on."],["coffee","Take your scheduled break, even on a good day."],["pin","Learned a tricky address? Add a note for the next courier."]],
+ [["handtruck","Use the hand truck for anything heavy or multi-box."],["shield","Three points of contact getting in and out of the cab."],["handoff","Say hi. A friendly handoff takes ten seconds."]],
+ [["clock","Pace yourself. The count grows, your technique carries it."],["pen","Double-check signature packages before you knock."],["check","Finish with a post-trip check and an honest end-of-day report."]]
+];
+
+/* ---------- payload ---------- */
+var DEMO={v:1,n:"Rosa",c:"FW-DEMO",pv:1,t:"experienced",tl:"Experienced Courier track",s:"06:00",
+ d:[[1,["SAFE-101","DOT-110","SCAN-120"],0],[2,["LIFT-130","VEH-210","ROUTE-310"],0],[3,["RIDE-300"],0],[4,[],60],[5,[],72],[6,[],84],[7,[],96],[8,[],108],[9,[],114],[10,[],120]],
+ h:{"SAFE-101":3,"DOT-110":1,"SCAN-120":0.5,"LIFT-130":1,"VEH-210":1,"ROUTE-310":1.5,"RIDE-300":8},
+ w:["Your parcel route experience puts you on the Experienced Courier track: one ride-along day, then a faster ramp.","Scanner training is a 30-minute refresher, since you've used a handheld scanner before."]};
+
+function decode(){
+ try{
+  var hs=location.hash.replace(/^#/,''); if(!hs) return null;
+  var raw=new URLSearchParams(hs).get('p'); if(!raw) return null;
+  var b=raw.replace(/-/g,'+').replace(/_/g,'/'); while(b.length%4) b+='=';
+  var bin=atob(b), bytes=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  var o=JSON.parse(new TextDecoder().decode(bytes));
+  if(!o||typeof o!=='object'||!Array.isArray(o.d)||!o.d.length) return null;
+  var days=[];
+  o.d.forEach(function(r){
+   if(!Array.isArray(r)) return;
+   var dn=parseInt(r[0],10); if(!(dn>0&&dn<100)) return;
+   var mods=Array.isArray(r[1])?r[1].filter(function(x){return typeof x==='string'&&x.length<40;}):[];
+   var lim=parseInt(r[2],10)||0;
+   days.push([dn,mods,lim>0?lim:0]);
+  });
+  if(!days.length) return null;
+  days.sort(function(a,b){return a[0]-b[0];});
+  return {n:typeof o.n==='string'&&o.n.trim()?o.n.trim().slice(0,40):'there',c:String(o.c||'plan').slice(0,40),pv:parseInt(o.pv,10)||1,
+   t:o.t==='foundations'?'foundations':'experienced',tl:typeof o.tl==='string'?o.tl.slice(0,80):'',s:typeof o.s==='string'?o.s.slice(0,12):null,
+   d:days,h:(o.h&&typeof o.h==='object')?o.h:{},w:Array.isArray(o.w)?o.w.filter(function(x){return typeof x==='string';}).slice(0,6):[]};
+ }catch(e){return null;}
+}
+
+var P,SAMPLE,KEY,S;
+function load(){try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);if(o&&typeof o==='object')return {m:o.m||{},tips:o.tips||{},ask:o.ask||{}};}}catch(e){}return {m:{},tips:{},ask:{}};}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+
+function init(){
+ P=decode(); SAMPLE=!P; if(SAMPLE) P=DEMO;
+ KEY='ob-training:'+P.c+':v'+P.pv;
+ S=load();
+ document.getElementById('ribbon').hidden=!SAMPLE;
+ showHome();
+}
+
+/* ---------- helpers ---------- */
+function allMods(){var seen={},out=[];P.d.forEach(function(r){r[1].forEach(function(m){if(!seen[m]){seen[m]=1;out.push(m);}});});return out;}
+function fmtH(h){h=Number(h);if(!(h>0))return '';if(h<1)return Math.round(h*60)+' min';return (Math.round(h*10)/10)+(h===1?' hour':' hours');}
+function modTitle(id){return M[id]?M[id].title:'Session with your supervisor';}
+function dayDone(r){var mods=r[1],lim=r[2];if(!mods.length&&!lim)return false;return mods.every(function(m){return !!S.m[m];})&&(!lim||!!S.tips[r[0]]);}
+function announce(t){var l=document.getElementById('live');l.textContent='';setTimeout(function(){l.textContent=t;},40);}
+function pad(n){return (n<10?'0':'')+n;}
+
+/* ---------- home ---------- */
+function barcode(seed){var s=0,str=String(seed),out='',x=0;for(var i=0;i<str.length;i++)s=(s*31+str.charCodeAt(i))>>>0;for(var j=0;j<46&&x<216;j++){s=(s*1103515245+12345)>>>0;var w=1+(s>>>16)%3;if(j%2===0)out+='<rect x="'+x+'" y="0" width="'+w+'" height="26"/>';x+=w+1;}return '<svg class="bars" viewBox="0 0 220 26" preserveAspectRatio="none" aria-hidden="true" fill="#111314">'+out+'</svg>';}
+
+function showHome(focusId){
+ var mods=allMods(), done=mods.filter(function(m){return S.m[m];}).length;
+ var pct=mods.length?Math.round(done/mods.length*100):0;
+ var activeDays=P.d.filter(function(r){return r[1].length||r[2];});
+ var daysDone=activeDays.filter(dayDone).length;
+ var C=2*Math.PI*40;
+ var nextIdx=-1; for(var i=0;i<P.d.length;i++){var r=P.d[i];if((r[1].length||r[2])&&!dayDone(r)){nextIdx=i;break;}}
+ var trackName=P.tl||(P.t==='foundations'?'Foundations track':'Experienced Courier track');
+ var h='';
+ h+='<section class="hero" aria-labelledby="hi">';
+ h+='<p class="eyebrow">Fleetwing Express · Courier training</p>';
+ h+='<h1 id="hi">Hi '+esc(P.n)+', here\'s your <span class="hl">training</span></h1>';
+ h+='<div class="label" role="group" aria-label="Your training summary">';
+ h+='<div class="lbl-main"><div class="lbl-grid">';
+ h+='<div><small>Trainee</small><strong>'+esc(P.n)+'</strong></div>';
+ h+='<div><small>Daily start</small><strong>'+(P.s?esc(P.s):'Confirm with supervisor')+'</strong></div>';
+ h+='<div style="grid-column:1/-1"><small>Track</small><strong>'+esc(trackName)+'</strong></div>';
+ h+='<div><small>Modules</small><strong>'+done+' / '+mods.length+'</strong></div>';
+ h+='<div><small>Days</small><strong>'+daysDone+' / '+activeDays.length+'</strong></div>';
+ h+='</div><div class="ring" role="img" aria-label="'+pct+' percent of modules complete"><svg viewBox="0 0 96 96" aria-hidden="true"><circle class="bg" cx="48" cy="48" r="40"/><circle class="fg" cx="48" cy="48" r="40" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+(C*(1-pct/100)).toFixed(1)+'"/></svg><div class="pct"><b>'+pct+'%</b><span>done</span></div></div></div>';
+ h+='<div class="lbl-foot">'+barcode(P.c)+'<b>'+(P.t==='foundations'?'FND':'EXP')+'</b></div>';
+ h+='</div>';
+ if(P.w.length){
+  h+='<div class="tailored"><h2>'+ico('spark')+'Tailored for you</h2><ul>';
+  P.w.forEach(function(w){h+='<li><span>'+esc(w)+'</span></li>';});
+  h+='</ul></div>';
+ }
+ h+='</section>';
+
+ h+='<section class="blk" aria-labelledby="rt"><div class="sec-head"><p class="eyebrow">Your two weeks</p><h2 class="h2" id="rt">The route</h2><p>Tap a module to start. Each one takes a few minutes here, then your supervisor covers the hands-on part.</p></div>';
+ h+='<div class="rwrap"><svg class="road" viewBox="0 0 44 100" preserveAspectRatio="none" aria-hidden="true"><rect x="10" y="0" width="24" height="100" fill="var(--road)"/><line x1="22" y1="0" x2="22" y2="100" stroke="var(--road-line)" stroke-width="2" stroke-dasharray="6 6" vector-effect="non-scaling-stroke"/></svg><ol class="route">';
+ var lastWeek=0, routeIdx=0;
+ P.d.forEach(function(r,idx){
+  var dn=r[0],mods=r[1],lim=r[2],wk=Math.ceil(dn/5);
+  if(wk!==lastWeek){lastWeek=wk;h+='<li class="week" aria-hidden="true"><i>W'+wk+'</i><span>Week '+wk+'</span></li>';}
+  var isDone=dayDone(r), isNext=idx===nextIdx;
+  var hrs=0; mods.forEach(function(m){hrs+=Number(P.h[m])||0;});
+  h+='<li class="day'+(isDone?' done':'')+(isNext?' next':'')+'" id="day-'+dn+'">';
+  h+='<div class="pinwrap"><div class="pin" aria-hidden="true">'+(isDone?ico('tick'):pad(dn))+'</div></div>';
+  h+='<div class="dcard"><div class="dhead"><h3>Day '+dn+'</h3>';
+  if(isDone) h+='<span class="tag ok">Complete</span>'; else if(isNext) h+='<span class="tag go">Up next</span>'; else if(hrs) h+='<span class="tag">'+esc(fmtH(hrs))+'</span>';
+  h+='</div>';
+  if(mods.length){
+   h+='<div class="chips">';
+   mods.forEach(function(m){
+    var d=!!S.m[m], hm=fmtH(P.h[m]);
+    h+='<button class="chip'+(d?' done':'')+'" data-mod="'+esc(m)+'" id="chip-'+esc(m)+'-'+dn+'"><code>'+esc(m)+'</code><span class="t">'+esc(modTitle(m))+(hm?'<small>'+esc(hm)+(d?' · complete':'')+'</small>':(d?'<small>complete</small>':''))+'</span><span class="st" aria-hidden="true">'+(d?ico('tick'):'')+'</span><span class="sr">'+(d?'Completed. ':'Not started. ')+'</span></button>';
+   });
+   h+='</div>';
+  }
+  if(lim){
+   var tipOpen=false;
+   h+='<div class="stops"><svg class="trk" aria-hidden="true"><use href="#trk"/></svg><div><b>Up to '+lim+' stops</b><small>On route'+(mods.length?' after training':'')+'. Standard ramp for new couriers.</small></div></div>';
+   h+='<button class="btn tipbtn" aria-expanded="false" aria-controls="tips-'+dn+'" data-tip="'+dn+'"><span>'+(S.tips[dn]?'✓ ':'')+'Before you head out</span>'+ico('down','chev')+'</button>';
+   var set=TIPS[routeIdx%TIPS.length]; routeIdx++;
+   h+='<div class="tips" id="tips-'+dn+'" hidden><h4>Before you head out</h4><ul>';
+   set.forEach(function(t){h+='<li>'+ico(t[0])+'<span>'+esc(t[1])+'</span></li>';});
+   h+='</ul>'+(S.tips[dn]?'<p class="mono" style="font-size:12px">✓ Read. Have a good run.</p>':'<button class="btn primary" data-ack="'+dn+'">Got it, ready to roll</button>')+'</div>';
+  }
+  if(!mods.length&&!lim) h+='<p class="rest">No training scheduled. Your supervisor will confirm the plan for this day.</p>';
+  h+='</div></li>';
+ });
+ h+='<li class="finish"><div class="pinwrap"><div class="pin" aria-hidden="true">'+ico('flag')+'</div></div><div class="dcard"><div class="dhead"><h3>Your own route</h3></div><p>After the ramp, you\'re a full Fleetwing courier. Your supervisor will check in along the way.</p></div></li>';
+ h+='</ol></div></section>';
+
+ h+='<section class="blk" aria-labelledby="bg"><div class="sec-head"><p class="eyebrow">'+done+' of '+mods.length+' earned</p><h2 class="h2" id="bg">Badges</h2></div><div class="badges">';
+ mods.forEach(function(m){
+  var d=!!S.m[m], ic=M[m]?M[m].icon:'box';
+  h+='<button class="badge'+(d?' got':'')+'" data-mod="'+esc(m)+'" aria-label="'+esc(m)+' '+esc(modTitle(m))+(d?', badge earned':', not yet earned')+'"><svg viewBox="0 0 56 56" aria-hidden="true"><path class="hex" d="M28 3l22 12.5v25L28 53 6 40.5v-25z"/><g class="bi" transform="translate(16 16)"><svg width="24" height="24" viewBox="0 0 24 24" class="ico">'+(IC[ic]||IC.box)+'</svg></g></svg><code>'+esc(m)+'</code><span>'+(d?'Earned':'Locked')+'</span></button>';
+ });
+ h+='</div>';
+ if(mods.length&&done===mods.length) h+='<div class="allset">'+ico('star')+'<div><b>Training modules complete</b>Nice work. Bring your questions to your supervisor and enjoy the route.</div></div>';
+ h+='</section>';
+
+ h+='<footer class="note"><p>Stop limits are the standard ramp for every new courier, not a judgement on you. Questions? Message the Onboarding assistant in Slack.</p><p class="mono">'+(SAMPLE?'SAMPLE PLAN · OPEN YOUR LINK FROM SLACK TO SEE YOURS':'CASE '+esc(P.c)+' · PLAN V'+P.pv+' · YOUR PLAN STAYS ON THIS DEVICE')+'</p></footer>';
+
+ var home=document.getElementById('home'), les=document.getElementById('lesson');
+ home.innerHTML=h; les.hidden=true; les.innerHTML=''; home.hidden=false;
+ document.title=(SAMPLE?'Sample':'Your')+' Courier Training';
+ if(focusId){var f=document.getElementById(focusId);if(f){f.focus({preventScroll:true});f.scrollIntoView({block:'center'});}}
+}
+
+document.addEventListener('click',function(e){
+ var t=e.target.closest('button,[data-hs],[data-st]'); if(!t) return;
+ if(t.dataset.mod&&!document.getElementById('home').hidden){openLesson(t.dataset.mod,t.id);return;}
+ if(t.dataset.tip){var p=document.getElementById('tips-'+t.dataset.tip),ex=t.getAttribute('aria-expanded')==='true';t.setAttribute('aria-expanded',String(!ex));p.hidden=ex;return;}
+ if(t.dataset.ack){var dn=t.dataset.ack;S.tips[dn]=true;save();var r=P.d.filter(function(x){return String(x[0])===dn;})[0];showHome();
+   var b=document.querySelector('[data-tip="'+dn+'"]');if(b){b.setAttribute('aria-expanded','true');document.getElementById('tips-'+dn).hidden=false;b.focus({preventScroll:true});}
+   announce('Day '+dn+' tips read.'+(r&&dayDone(r)?' Day '+dn+' complete.':''));if(r&&dayDone(r))confetti(26);return;}
+});
+
+/* ---------- lesson ---------- */
+var L=null;
+function openLesson(id,from){
+ var mod=M[id];
+ var steps=[];
+ if(mod){
+  mod.points.forEach(function(p,i){steps.push({k:'point',i:i});});
+  if(mod.extra) steps.push({k:mod.extra});
+  steps.push({k:'scenario'}); steps.push({k:'q',i:0}); steps.push({k:'q',i:1});
+ }else steps.push({k:'unknown'});
+ steps.push({k:'done'});
+ L={id:id,mod:mod,steps:steps,at:0,from:from,ans:{},insp:{},seq:[],seqOk:false};
+ var home=document.getElementById('home'),les=document.getElementById('lesson');
+ home.hidden=true; les.hidden=false;
+ var h='<div class="lbar"><div class="lbar-in"><button class="back" id="lback">'+ico('left')+'Route</button><code id="lcount"></code></div><div class="prog" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100" id="lprog"><i></i></div></div>';
+ h+='<div class="lhead"><p class="eyebrow">'+esc(id)+(P.h[id]?' · '+esc(fmtH(P.h[id]))+' with your supervisor':'')+'</p><h1>'+esc(modTitle(id))+'</h1>'+(mod?'<p class="why">'+esc(mod.why)+'</p>':'')+'</div>';
+ h+='<div id="lstep"></div><div class="lnav" id="lnav"><button class="btn" id="lprev">Back</button><button class="btn primary" id="lnext">Next</button></div>';
+ les.innerHTML=h;
+ document.title=id+' · Courier Training';
+ document.getElementById('lback').onclick=closeLesson;
+ document.getElementById('lprev').onclick=function(){if(L.at>0){L.at--;renderStep(true);}};
+ document.getElementById('lnext').onclick=function(){if(canNext()&&L.at<L.steps.length-1){L.at++;renderStep(true);}};
+ window.scrollTo(0,0);
+ renderStep(false);
+ document.getElementById('lback').focus({preventScroll:true});
+}
+function closeLesson(){var f=L&&L.from;L=null;showHome(f);}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&L)closeLesson();});
+
+function canNext(){
+ var s=L.steps[L.at];
+ if(s.k==='scenario') return L.ans.sc!=null;
+ if(s.k==='q') return L.ans['q'+s.i]===true;
+ if(s.k==='inspect') return Object.keys(L.insp).length>=INSPECT.length;
+ if(s.k==='sequence') return L.seqOk;
+ return true;
+}
+function updNav(){
+ var s=L.steps[L.at], n=L.steps.length;
+ var pct=Math.round(L.at/(n-1)*100);
+ var pb=document.getElementById('lprog'); pb.firstChild.style.width=pct+'%'; pb.setAttribute('aria-valuenow',pct);
+ document.getElementById('lcount').textContent=s.k==='done'?'COMPLETE':'STEP '+(L.at+1)+' / '+(n-1);
+ var nav=document.getElementById('lnav'); nav.hidden=s.k==='done';
+ document.getElementById('lprev').disabled=L.at===0;
+ var nx=document.getElementById('lnext'); nx.disabled=!canNext();
+ nx.textContent=L.steps[L.at+1]&&L.steps[L.at+1].k==='done'?'Finish module':'Next';
+}
+
+function renderStep(focus){
+ var s=L.steps[L.at], m=L.mod, h='', box=document.getElementById('lstep');
+ if(s.k==='point'){
+  var p=m.points[s.i], dots='';
+  m.points.forEach(function(_,j){dots+='<i class="'+(j===s.i?'on':(j<s.i?'seen':''))+'"></i>';});
+  h='<div class="step"><div class="dots" aria-hidden="true">'+dots+'</div><div class="kp-ico">'+ico(p.i)+'</div><p class="eyebrow">Key point '+(s.i+1)+' of '+m.points.length+'</p><h2 tabindex="-1">'+esc(p.h)+'</h2><p class="lead">'+esc(p.t)+'</p></div>';
+ } else if(s.k==='scenario'){
+  h='<div class="step"><p class="eyebrow">Scenario</p><h2 tabindex="-1">What would you do?</h2><div class="situ"><small>On the job</small>'+esc(m.scenario.s)+'</div><div class="choices" role="group" aria-label="Choices">';
+  m.scenario.c.forEach(function(c,j){h+=choiceBtn('sc',j,c.t);});
+  h+='</div><div class="fb" id="fb" role="status" aria-live="polite"></div></div>';
+ } else if(s.k==='q'){
+  var q=m.q[s.i];
+  h='<div class="step"><p class="eyebrow">Check '+(s.i+1)+' of 2</p><h2 tabindex="-1">'+esc(q.q)+'</h2><div class="choices" role="group" aria-label="Answers">';
+  q.o.forEach(function(o,j){h+=choiceBtn('q',j,o);});
+  h+='</div><div class="fb" id="fb" role="status" aria-live="polite"></div></div>';
+ } else if(s.k==='inspect'){
+  h='<div class="step"><p class="eyebrow">Hands-on · Walk-around</p><h2 tabindex="-1">Inspect the truck</h2><p class="lead">Tap each marker (or each item below) to inspect that part. Check all seven before you roll.</p>'+truckSVG()+'<p class="count" id="icount" aria-live="polite"></p><div class="parts">';
+  INSPECT.forEach(function(p,j){h+='<button class="part" data-part="'+p.k+'" aria-pressed="false"><span class="n">'+(j+1)+'</span><span><b>'+esc(p.h)+'</b><small hidden>'+esc(p.t)+'</small></span></button>';});
+  h+='</div></div>';
+ } else if(s.k==='sequence'){
+  h='<div class="step"><p class="eyebrow">Hands-on · Sequencing</p><h2 tabindex="-1">Sequence these 5 stops</h2><p class="lead">You\'re leaving the depot. Tap the stops in the order you\'d deliver them. The pharmacy has a 10:30 commit.</p>'+seqSVG()+'<div class="seqbtns">';
+  SEQ.stops.forEach(function(st){h+='<button class="sb" data-seq="'+st.k+'" aria-pressed="false"><span class="k">'+st.k+'</span><span>'+esc(st.n)+'<small>'+esc(st.d)+'</small></span></button>';});
+  h+='</div><p class="seqline" id="seqline" aria-live="polite"></p><div class="row"><button class="btn" id="sreset">Reset</button><button class="btn primary" id="scheck" disabled>Check route</button></div><div class="fb" id="fb" role="status" aria-live="polite"></div></div>';
+ } else if(s.k==='ask'){
+  h='<div class="step"><p class="eyebrow">Ride-along checklist</p><h2 tabindex="-1">Things to ask your mentor</h2><p class="lead">Save this for the day. Your checks stay on this phone.</p><div class="ask">';
+  ASK.forEach(function(a,j){h+='<label><input type="checkbox" data-ask="'+j+'"'+(S.ask[j]?' checked':'')+'><span>'+esc(a)+'</span></label>';});
+  h+='</div></div>';
+ } else if(s.k==='unknown'){
+  h='<div class="step"><p class="eyebrow">In person</p><h2 tabindex="-1">Your supervisor covers this one</h2><p class="lead">There\'s no app lesson for this session. Bring a notebook and your questions. You can mark it done once you\'ve completed it.</p></div>';
+ } else if(s.k==='done'){
+  var first=!S.m[L.id];
+  S.m[L.id]=Date.now(); save();
+  var nm=nextModule(), ic=m?m.icon:'box';
+  var dt=new Date(S.m[L.id]);
+  h='<div class="step done-step"><p class="eyebrow">'+esc(L.id)+'</p><div class="stamp go" aria-hidden="true"><b>Module<br>complete</b><span>'+esc(L.id)+' · '+dt.toLocaleDateString(undefined,{month:'short',day:'numeric'}).toUpperCase()+'</span></div><h2 tabindex="-1">Nice work, '+esc(P.n)+'</h2><p class="earned"><svg viewBox="0 0 56 56" aria-hidden="true"><path d="M28 3l22 12.5v25L28 53 6 40.5v-25z" fill="var(--hivis)" stroke="var(--ink)" stroke-width="2"/><g transform="translate(16 16)" style="color:#14181B"><svg width="24" height="24" viewBox="0 0 24 24" class="ico">'+(IC[ic]||IC.box)+'</svg></g></svg>Badge earned: '+esc(L.id)+'</p><div class="acts">'+(nm?'<button class="btn primary" id="dnext">Next: '+esc(nm)+'</button>':'')+'<button class="btn'+(nm?'':' primary')+'" id="dback">Back to route</button></div></div>';
+  box.innerHTML=h; updNav();
+  if(nm) document.getElementById('dnext').onclick=function(){openLesson(nm,null);};
+  document.getElementById('dback').onclick=closeLesson;
+  var all=allMods().every(function(x){return S.m[x];});
+  announce('Module '+L.id+' complete. Badge earned.'+(all?' All training modules complete.':''));
+  if(first||all) confetti(all?90:46);
+  box.querySelector('h2').focus({preventScroll:true});
+  window.scrollTo(0,0);
+  return;
+ }
+ box.innerHTML=h; updNav();
+ if(s.k==='inspect') syncInspect();
+ if(s.k==='sequence'){wireSeq(); syncSeq();}
+ if(focus){var hd=box.querySelector('h2');if(hd)hd.focus({preventScroll:true});var top=document.querySelector('.lhead');if(top&&window.scrollY>top.offsetTop)window.scrollTo(0,top.offsetTop);}
+}
+function choiceBtn(kind,j,t){return '<button class="choice" data-ch="'+kind+'" data-j="'+j+'"><span class="k" aria-hidden="true">'+'ABCD'[j]+'</span><span>'+esc(t)+'</span></button>';}
+function nextModule(){var ms=allMods();for(var i=0;i<ms.length;i++)if(!S.m[ms[i]]&&ms[i]!==L.id)return ms[i];return null;}
+
+document.addEventListener('click',function(e){
+ if(!L) return;
+ var c=e.target.closest('.choice');
+ if(c&&!c.disabled){
+  var s=L.steps[L.at], j=+c.dataset.j, fb=document.getElementById('fb'), btns=[].slice.call(document.querySelectorAll('.choice'));
+  if(s.k==='scenario'){
+   var sc=L.mod.scenario, ch=sc.c[j];
+   L.ans.sc=j;
+   btns.forEach(function(b,k){b.disabled=true;if(sc.c[k].best)b.classList.add('right');else if(k===j)b.classList.add('wrong');});
+   fb.className='fb '+(ch.best?'good':'bad');
+   fb.innerHTML='<b>'+(ch.best?'Best call':'Not quite')+'</b><span>'+esc(ch.f)+'</span>'+(ch.best?'':'<span><strong>Better:</strong> '+esc(sc.c.filter(function(x){return x.best;})[0].t)+'</span>');
+  } else if(s.k==='q'){
+   var q=L.mod.q[s.i];
+   if(j===q.a){
+    L.ans['q'+s.i]=true;
+    btns.forEach(function(b){b.disabled=true;});c.classList.add('right');
+    fb.className='fb good';fb.innerHTML='<b>Correct</b><span>'+esc(q.e)+'</span>';
+   } else {
+    c.disabled=true;c.classList.add('wrong');
+    fb.className='fb bad';fb.innerHTML='<b>Not quite</b><span>Have another look and try again.</span>';
+   }
+  }
+  updNav(); return;
+ }
+ var pt=e.target.closest('[data-part],[data-hs]');
+ if(pt){var k=pt.dataset.part||pt.dataset.hs;L.insp[k]=true;syncInspect();updNav();var b=document.querySelector('.part[data-part="'+k+'"]');if(b&&pt.dataset.hs)b.scrollIntoView({block:'nearest'});announce(INSPECT.filter(function(x){return x.k===k;})[0].h+' inspected. '+Object.keys(L.insp).length+' of '+INSPECT.length+'.');return;}
+ var sq=e.target.closest('[data-seq],[data-st]');
+ if(sq&&!L.seqOk){var k2=sq.dataset.seq||sq.dataset.st,ix=L.seq.indexOf(k2);if(ix>=0)L.seq.splice(ix);else L.seq.push(k2);syncSeq();return;}
+});
+document.addEventListener('change',function(e){var a=e.target.dataset&&e.target.dataset.ask;if(a!=null){if(e.target.checked)S.ask[a]=true;else delete S.ask[a];save();}});
+document.addEventListener('keydown',function(e){var t=e.target;if((e.key==='Enter'||e.key===' ')&&t.getAttribute&&t.getAttribute('role')==='button'&&t.closest('svg')){e.preventDefault();t.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
+
+function truckSVG(){
+ var s='<svg class="truck" viewBox="0 0 330 180" role="group" aria-label="Box truck, side view. Tap a marker to inspect.">';
+ s+='<rect x="0" y="160" width="330" height="20" fill="var(--line)"/>';
+ s+='<rect class="body" x="10" y="30" width="200" height="112" rx="3"/><path d="M20 44h180M20 128h180" stroke="var(--line)" stroke-width="2"/>';
+ s+='<rect x="40" y="70" width="130" height="30" rx="2" fill="var(--hivis)"/><text x="105" y="85" style="font:900 15px var(--f-display);fill:#14181B;text-anchor:middle;dominant-baseline:central;letter-spacing:.08em">FLEETWING</text>';
+ s+='<path class="body" d="M212 62h52l30 34 4 6v40h-86z"/><path class="glass" d="M222 70h38l24 28h-62z"/><rect class="dark" x="234" y="50" width="4" height="16"/><rect class="dark" x="226" y="48" width="12" height="16" rx="2"/>';
+ s+='<rect x="292" y="104" width="10" height="10" rx="2" fill="#F7E6A6" stroke="var(--ink)" stroke-width="1.5"/><rect x="6" y="104" width="8" height="16" rx="1" fill="#C2402F" stroke="var(--ink)" stroke-width="1.5"/>';
+ [72,256].forEach(function(x){s+='<circle cx="'+x+'" cy="148" r="18" class="dark"/><circle cx="'+x+'" cy="148" r="7" fill="var(--sunk)"/>';});
+ INSPECT.forEach(function(p,j){s+='<g class="hs" data-hs="'+p.k+'" role="button" tabindex="0" aria-label="Inspect '+esc(p.h)+'"><circle class="ring2" cx="'+p.x+'" cy="'+p.y+'" r="12"/><text x="'+p.x+'" y="'+p.y+'">'+(j+1)+'</text></g>';});
+ return s+'</svg>';
+}
+function syncInspect(){
+ var n=0;
+ INSPECT.forEach(function(p,j){var on=!!L.insp[p.k];if(on)n++;
+  var b=document.querySelector('.part[data-part="'+p.k+'"]');if(b){b.setAttribute('aria-pressed',String(on));b.querySelector('small').hidden=!on;b.querySelector('.n').innerHTML=on?'✓':String(j+1);}
+  var g=document.querySelector('[data-hs="'+p.k+'"]');if(g){g.classList.toggle('ok',on);g.querySelector('text').textContent=on?'✓':String(j+1);}
+ });
+ var c=document.getElementById('icount'); if(c) c.textContent=n===INSPECT.length?'ALL 7 CHECKED · TRUCK IS GOOD TO GO':n+' / '+INSPECT.length+' CHECKED';
+}
+function seqSVG(){
+ var s='<svg class="seqmap" viewBox="0 0 320 236" role="group" aria-label="Map with the depot and five stops"><g class="blocks">';
+ [[14,14,92,94],[118,14,42,26],[118,72,92,82],[222,14,84,52],[222,118,84,36],[56,168,70,56],[166,206,140,22]].forEach(function(b){s+='<rect x="'+b[0]+'" y="'+b[1]+'" width="'+b[2]+'" height="'+b[3]+'" rx="4"/>';});
+ s+='</g><polyline class="path" id="spath" points=""/>';
+ s+='<g><rect x="26" y="192" width="28" height="28" rx="3" fill="var(--ink)"/><text x="40" y="206" style="fill:var(--paper);font-size:10px">HQ</text></g>';
+ SEQ.stops.forEach(function(st){s+='<g class="st'+(st.pri?' pri':'')+'" data-st="'+st.k+'" role="button" tabindex="0" aria-label="Stop '+st.k+', '+esc(st.n)+'"><circle cx="'+st.x+'" cy="'+st.y+'" r="15"/><text x="'+st.x+'" y="'+st.y+'">'+st.k+'</text></g>';});
+ return s+'</svg>';
+}
+function wireSeq(){
+ document.getElementById('sreset').onclick=function(){if(L.seqOk)return;L.seq=[];syncSeq();var fb=document.getElementById('fb');fb.className='fb';fb.innerHTML='';};
+ document.getElementById('scheck').onclick=function(){
+  var o=L.seq.join(''),fb=document.getElementById('fb');
+  if(SEQ.ok.indexOf(o)>=0){L.seqOk=true;fb.className='fb good';fb.innerHTML='<b>Clean route</b><span>Pharmacy first for the 10:30 commit, then one smooth loop with no backtracking. '+(o==='ABCDE'?'Sweeping the other way round (A, E, D, C, B) works too.':'Sweeping the other way round (A, B, C, D, E) works too.')+'</span>';document.getElementById('scheck').disabled=true;document.getElementById('sreset').disabled=true;syncSeq();}
+  else if(o[0]!=='A'){fb.className='fb bad';fb.innerHTML='<b>Check the commit</b><span>The pharmacy (A) has a 10:30 commit. Priority stops anchor the sequence, so start there.</span>';}
+  else{fb.className='fb bad';fb.innerHTML='<b>Some zigzag</b><span>Pharmacy first is right. Now sweep around the area in one loop so you never double back past a stop. Reset and try again.</span>';}
+  updNav();
+ };
+}
+function syncSeq(){
+ var pts=[SEQ.depot.x+','+SEQ.depot.y];
+ SEQ.stops.forEach(function(st){var ix=L.seq.indexOf(st.k),on=ix>=0;
+  var b=document.querySelector('.sb[data-seq="'+st.k+'"]');if(b){b.setAttribute('aria-pressed',String(on));b.querySelector('.k').textContent=on?String(ix+1):st.k;}
+  var g=document.querySelector('[data-st="'+st.k+'"]');if(g){g.classList.toggle('picked',on);g.querySelector('text').textContent=on?String(ix+1):st.k;}
+ });
+ L.seq.forEach(function(k){var st=SEQ.stops.filter(function(x){return x.k===k;})[0];pts.push(st.x+','+st.y);});
+ var pl=document.getElementById('spath'); if(pl) pl.setAttribute('points',L.seq.length?pts.join(' '):'');
+ var line=document.getElementById('seqline');
+ if(line) line.textContent='Depot → '+(L.seq.length?L.seq.map(function(k){return k;}).join(' → '):'tap a stop')+(L.seq.length<5?'':'');
+ var ck=document.getElementById('scheck'); if(ck&&!L.seqOk) ck.disabled=L.seq.length<5;
+}
+
+/* ---------- confetti ---------- */
+function confetti(n){
+ try{if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;}catch(e){}
+ var box=document.createElement('div');box.className='confetti';box.setAttribute('aria-hidden','true');
+ var cols=['#F2A900','#14181B','#FCEBC0','#2F7D4F','#FFFFFF'];
+ var W=window.innerWidth,H=window.innerHeight;
+ for(var i=0;i<n;i++){
+  var p=document.createElement('i');p.style.left=(Math.random()*100)+'%';p.style.background=cols[i%cols.length];
+  if(i%5===4)p.style.outline='1px solid #14181B';
+  box.appendChild(p);
+  if(p.animate){var dx=(Math.random()-.5)*W*.3,rot=(Math.random()*720-360);
+   p.animate([{transform:'translate(0,0) rotate(0)',opacity:1},{transform:'translate('+dx+'px,'+(H*.9+Math.random()*H*.2)+'px) rotate('+rot+'deg)',opacity:.9}],{duration:1600+Math.random()*1200,delay:Math.random()*300,easing:'cubic-bezier(.2,.6,.4,1)',fill:'forwards'});}
+ }
+ document.body.appendChild(box);
+ setTimeout(function(){box.remove();},3400);
+}
+
+window.addEventListener('hashchange',init);
+init();
+})();
+</script>
+</body>
+</html>
