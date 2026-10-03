@@ -199,7 +199,7 @@ export async function approvePlan(ctx: EngineContext, c: CaseRow, version: numbe
 }
 
 /** The only way a plan reaches the worker. Refuses anything without a matching manager approval. */
-export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: number): Promise<'slack' | 'email'> {
+export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: number, resendTo?: string): Promise<'slack' | 'email'> {
   const row = getPlan(ctx, c.id, version);
   if (!row) throw new PlanNotApprovedError(`no plan v${version}`);
   const approval = ctx.store.db
@@ -210,7 +210,7 @@ export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: 
   if (approval.subject_hash !== row.content_hash || hashPlan(planContent(row)) !== row.content_hash) throw new PlanNotApprovedError('plan changed after approval');
 
   // Workers get the plan in their Slack DM once they've joined; email is the fallback before that.
-  if (c.slack_user_id) {
+  if (c.slack_user_id && !resendTo) {
     const r = await postSlack(ctx, { actionKey: `slack:plan-dm:${c.id}:v${version}`, caseId: c.id, kind: 'plan', channel: c.slack_user_id, text: workerPlanMessage(ctx, c, row) });
     if (r.state === 'sent') markSent(ctx, c, row);
     return 'slack';
@@ -228,11 +228,12 @@ export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: 
     }),
     '',
     'Daily stop numbers are the policy ramp limits for new couriers, not expectations based on your CV.',
-    'Next, we will invite you to our team Slack, where your training tasks will be posted.',
+    c.slack_user_id ? 'Your training tasks will be posted in your Slack DMs.' : 'Next, we will invite you to our team Slack, where your training tasks will be posted.',
     '',
     '— Onboarding assistant',
   ].join('\n');
-  const r = await sendEmail(ctx, { actionKey: `email:plan:${c.id}:v${version}`, caseId: c.id, kind: 'plan', to: c.worker_email, subject: 'Your approved two-week onboarding plan', text });
+  const r = await sendEmail(ctx, { actionKey: `email:plan:${c.id}:v${version}${resendTo ? `:${resendTo}` : ''}`, caseId: c.id, kind: 'plan', to: resendTo ?? c.worker_email, subject: 'Your approved two-week onboarding plan', text });
+  if (resendTo) return 'email';
   if (r.state === 'sent') markSent(ctx, c, row);
   return 'email';
 }
@@ -267,8 +268,10 @@ function parseOverrides(args: string[], base: Overrides): { overrides: Overrides
 registerCommand('plan', 'plan <case>', async (ctx, args, event) => {
   const c = findCase(ctx, args[0]);
   const existing = latestPlan(ctx, c.id);
-  const row = existing && existing.status !== 'superseded' ? existing : await proposePlan(ctx, c, event.userId);
-  return planSummary(ctx.store.getCase(c.id)!, row);
+  if (existing && existing.status !== 'superseded') return planSummary(ctx.store.getCase(c.id)!, existing);
+  await proposePlan(ctx, c, event.userId);
+  // proposePlan already posted the summary to the case's manager; don't post it twice there.
+  return event.userId === c.manager_slack_id ? { text: '' } : planSummary(ctx.store.getCase(c.id)!, latestPlan(ctx, c.id)!);
 });
 
 registerCommand('evidence', 'evidence <case> [version]', async (ctx, args) => {
@@ -316,4 +319,12 @@ registerCommand('revise', 'revise <case> [track=..] [add=MOD] [remove=MOD] [reso
     .run(newId('appr'), c.id, 'plan', latest.id, latest.content_hash, 'revision_requested', event.userId, note || null, now());
   const row = await proposePlan(ctx, c, event.userId, overrides);
   return planSummary(ctx.store.getCase(c.id)!, row);
+});
+
+registerCommand('resend-plan', 'resend-plan <case>', async (ctx, args) => {
+  const c = findCase(ctx, args[0]);
+  const row = ctx.store.db.prepare(`SELECT version FROM plans WHERE case_id = ? AND status IN ('approved','sent') ORDER BY version DESC LIMIT 1`).get(c.id) as { version: number } | undefined;
+  if (!row) throw new UserError(`${c.id} has no approved plan to resend.`);
+  await sendApprovedPlan(ctx, c, row.version, c.worker_email);
+  return { text: `Emailed approved plan v${row.version} to ${c.worker_email}.` };
 });

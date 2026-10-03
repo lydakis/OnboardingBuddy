@@ -27,12 +27,31 @@ export function commandUsages(): string[] {
   return [...handlers.values()].map((h) => h.usage);
 }
 
+/** Commands a manager can run (worker-only commands such as `answer` are excluded). */
+export function managerCommandUsages(): string[] {
+  return [...handlers.entries()].filter(([name]) => !OPEN_COMMANDS.has(name)).map(([, h]) => h.usage);
+}
+
+export function isManagerCommand(name: string): boolean {
+  return handlers.has(name.toLowerCase()) && !OPEN_COMMANDS.has(name.toLowerCase());
+}
+
 export function tokenize(text: string): string[] {
   const out: string[] = [];
   const re = /"([^"]*)"|(\S+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) out.push(m[1] ?? m[2]!);
   return out;
+}
+
+/** Words of a worker name, order-free ("Patel, Dev" and "Dev Patel" match the same case). */
+export function nameWords(name: string): string[] {
+  return name.toLowerCase().replace(/[^a-z0-9' -]/g, ' ').split(/\s+/).filter((w) => w.length > 1);
+}
+
+export function casesNamedIn(ctx: EngineContext, text: string): CaseRow[] {
+  const t = ` ${text.toLowerCase().replace(/[^a-z0-9' -]/g, ' ')} `;
+  return ctx.store.listCases().filter((c) => t.toUpperCase().includes(c.id) || nameWords(c.worker_name).some((w) => w.length > 2 && t.includes(` ${w} `)));
 }
 
 export function findCase(ctx: EngineContext, ref: string | undefined): CaseRow {
@@ -156,4 +175,18 @@ registerCommand('accept-sender', 'accept-sender <case> <address> [message id]', 
   }
   ctx.store.updateCase(c.id, { needs_attention: null });
   return { text: `Okay, replies from ${address} now count as ${c.worker_name}.${messageId ? ' Processing their reply now.' : ''}` };
+});
+
+registerCommand('set-email', 'set-email <case> <email>', async (ctx, args, event) => {
+  const c = findCase(ctx, args[0]);
+  const email = (args[1] ?? '').toLowerCase().replace(/^<mailto:([^|>]+).*$/, '$1');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new UserError('Usage: set-email <case> <email>');
+  const before = c.worker_email;
+  ctx.store.db.prepare('UPDATE cases SET worker_email = ?, updated_at = ? WHERE id = ?').run(email, new Date().toISOString(), c.id);
+  ctx.store.audit(c.id, event.userId, 'worker_email_changed', { from: before, to: email });
+  const plan = ctx.store.db.prepare(`SELECT version FROM plans WHERE case_id = ? AND status IN ('approved','sent') ORDER BY version DESC LIMIT 1`).get(c.id) as { version: number } | undefined;
+  return {
+    text: `Updated ${c.worker_name}'s email to ${email} (was ${before}). Future emails go there.`,
+    buttons: plan ? [{ text: `Resend plan v${plan.version} to ${email}`, command: `resend-plan ${c.id}`, style: 'primary' }] : undefined,
+  };
 });

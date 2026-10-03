@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeApp } from './helpers.ts';
+import { command, makeApp } from './helpers.ts';
 import { runPhase1, runPhase2, runPhase3 } from '../src/demo/scenario.ts';
 import { handleAgentMessage, parseAgentOutput, toSlackMrkdwn } from '../src/engine/agent.ts';
 import { MockLlm } from '../src/adapters/llm/mock.ts';
@@ -56,4 +56,25 @@ test('chat replies replace their placeholder in place and use Slack formatting',
   assert.equal(posts.length, 1, 'placeholder was updated, not duplicated');
   assert.match(posts[0]!.text, /^\*Status\*\n\*Rosa\* is ready\.\n• see <https:\/\/example\.net\/p\|plan>/);
   assert.equal(toSlackMrkdwn('| a | b |\n|---|---|'), '| a | b |');
+});
+
+test('manager chat finds workers by either name order and never suggests worker-only or placeholder commands', async () => {
+  const { casesNamedIn } = await import('../src/engine/commands.ts');
+  const app = await makeApp();
+  await command(app, 'U_MGR_DANA', 'start "Patel, Dev" dev.patel@example.net');
+  assert.deepEqual(casesNamedIn(app, 'what about Dev Patel?').map((c) => c.id), ['FW-001']);
+  assert.equal(parseAgentOutput('Sure.\nsuggested_command: answer FW-001 email x@y.z', true).command, null);
+  assert.equal(parseAgentOutput('{"reply":"ok","suggested_command":"set-email FW-001 <the email>"}', true).command, null);
+  const out = parseAgentOutput('Updating it.\nsuggested_command: set-email FW-001 dev@example.org', true);
+  assert.equal(out.command, 'set-email FW-001 dev@example.org');
+  assert.doesNotMatch(out.reply, /suggested_command/);
+});
+
+test('set-email changes where worker email goes and offers to resend an approved plan', async () => {
+  const app = await makeApp();
+  await command(app, 'U_MGR_DANA', 'start "Rosa Delgado" rosa.delgado@example.net');
+  const r = await command(app, 'U_MGR_DANA', 'set-email FW-001 rosa.new@example.org');
+  assert.match(r.text, /Updated Rosa Delgado's email to rosa.new@example.org/);
+  assert.equal(app.store.getCase('FW-001')!.worker_email, 'rosa.new@example.org');
+  assert.match((await command(app, 'U_DISPATCH_LEE', 'set-email FW-001 x@example.org')).text, /only an authorized/);
 });
