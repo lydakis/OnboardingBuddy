@@ -1,0 +1,24 @@
+{
+  "name": "onboarding-buddy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Onboarding agent demo for a fictional, FedEx-inspired delivery company (Dell x NVIDIA hackathon). Runs on NemoClaw/OpenClaw with local GB10 inference.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "demo": "node --disable-warning=ExperimentalWarning src/demo/run.ts",
+    "start": "node --disable-warning=ExperimentalWarning src/main.ts",
+    "cli": "node --disable-warning=ExperimentalWarning src/cli.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test",
+    "probe:llm": "node --disable-warning=ExperimentalWarning scripts/probe-llm.ts",
+    "live:check": "node --disable-warning=ExperimentalWarning scripts/live-check.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
+  }
+}

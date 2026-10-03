@@ -1,0 +1,15 @@
+# NemoClaw network policy preset: let gb10-agent read the Onboarding Buddy status API on the host.
+# UNTESTED. Try `--dry-run` first.
+preset:
+  name: onboarding-buddy
+network_policies:
+  onboarding_buddy:
+    endpoints:
+      - host: host.openshell.internal
+        port: 4600
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: /api/cases }
+    binaries:
+      - path: /usr/bin/curl

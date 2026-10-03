@@ -1,0 +1,165 @@
+{
+  "policyId": "FWX-ONB-2026.1",
+  "company": "Fleetwing Express (fictional, FedEx-inspired demo)",
+  "disclaimer": "Example onboarding policy written for a hackathon demo. Not a real company's policy. Daily stop targets below are policy-defined ramp limits, not predictions of a worker's productivity.",
+  "standardRoute": {
+    "stopsPerDay": 120
+  },
+  "review": {
+    "experienceToleranceYears": 1,
+    "rule": "R-REV-1: If the CV and questionnaire disagree on delivery experience by more than 1 year, or a fact the track depends on is uncertain, a manager must resolve it before the plan can be approved."
+  },
+  "tracks": [
+    {
+      "id": "experienced",
+      "label": "Experienced Courier track",
+      "rule": "R-TRACK-1: At least 2 years of parcel or route delivery experience shown in the CV, plus a driver's license, qualifies for the Experienced track.",
+      "minParcelYears": 2,
+      "requiresLicense": true,
+      "rampPctByDay": [
+        0,
+        0,
+        0,
+        50,
+        60,
+        70,
+        80,
+        90,
+        95,
+        100
+      ]
+    },
+    {
+      "id": "foundations",
+      "label": "Courier Foundations track",
+      "rule": "R-TRACK-2: Everyone else starts on Foundations: three ride-along days, then a gradual ramp that reaches the standard route in week 4.",
+      "minParcelYears": 0,
+      "requiresLicense": false,
+      "rampPctByDay": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        30,
+        40,
+        50,
+        60
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "SAFE-101",
+      "title": "Safety, hazmat awareness and incident reporting",
+      "hours": 3,
+      "appliesTo": "all",
+      "day": {
+        "experienced": 1,
+        "foundations": 1
+      },
+      "evidence": "quiz score of 80% or higher",
+      "rule": "R-MOD-1: Required for every new worker regardless of experience."
+    },
+    {
+      "id": "DOT-110",
+      "title": "Hours-of-service and break rules",
+      "hours": 1,
+      "appliesTo": "all",
+      "day": {
+        "experienced": 1,
+        "foundations": 1
+      },
+      "evidence": "signed acknowledgement",
+      "rule": "R-MOD-2: Required for every new worker."
+    },
+    {
+      "id": "SCAN-120",
+      "title": "Handheld scanner and proof of delivery",
+      "hours": 2,
+      "shortHours": 0.5,
+      "shortenedByEquipment": "handheld scanner",
+      "appliesTo": "all",
+      "day": {
+        "experienced": 1,
+        "foundations": 2
+      },
+      "evidence": "supervisor sign-off",
+      "rule": "R-MOD-3: Required for everyone; prior handheld scanner use shortens it to a 30-minute refresher on the Fleetwing app."
+    },
+    {
+      "id": "LIFT-130",
+      "title": "Safe lifting and hand-truck technique",
+      "hours": 1.5,
+      "appliesTo": "all",
+      "day": {
+        "experienced": 2,
+        "foundations": 2
+      },
+      "evidence": "supervisor sign-off",
+      "rule": "R-MOD-4: Required for every new worker."
+    },
+    {
+      "id": "VEH-210",
+      "title": "Pre-trip box truck inspection",
+      "hours": 2,
+      "appliesTo": "licensed",
+      "day": {
+        "experienced": 2,
+        "foundations": 3
+      },
+      "evidence": "supervisor sign-off",
+      "rule": "R-MOD-5: Required for anyone who will drive a Fleetwing vehicle."
+    },
+    {
+      "id": "DRV-220",
+      "title": "Defensive driving course",
+      "hours": 4,
+      "appliesTo": "foundations",
+      "day": {
+        "foundations": 3
+      },
+      "evidence": "course certificate",
+      "rule": "R-MOD-6: Required on the Foundations track before solo driving."
+    },
+    {
+      "id": "CUST-140",
+      "title": "Customer handoff, signatures and damaged-package reporting",
+      "hours": 1.5,
+      "appliesTo": "foundations",
+      "day": {
+        "foundations": 2
+      },
+      "evidence": "quiz score of 80% or higher",
+      "rule": "R-MOD-7: Required on the Foundations track."
+    },
+    {
+      "id": "ROUTE-310",
+      "title": "Route sequencing in the Fleetwing dispatch app",
+      "hours": 1,
+      "appliesTo": "experienced",
+      "day": {
+        "experienced": 2
+      },
+      "evidence": "signed acknowledgement",
+      "rule": "R-MOD-8: Experienced couriers learn Fleetwing's dispatch app instead of general route training."
+    },
+    {
+      "id": "RIDE-300",
+      "title": "Mentor ride-along",
+      "hours": 8,
+      "appliesTo": "all",
+      "day": {
+        "experienced": 3,
+        "foundations": 4
+      },
+      "daysByTrack": {
+        "experienced": 1,
+        "foundations": 3
+      },
+      "evidence": "mentor sign-off",
+      "rule": "R-MOD-9: One ride-along day on Experienced, three on Foundations."
+    }
+  ]
+}
