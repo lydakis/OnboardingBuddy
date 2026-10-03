@@ -104,3 +104,18 @@ test('an Enterprise-invited account that has not joined yet is never treated as 
   assert.deepEqual(await checkPendingJoins(app), ['FW-001']);
   assert.equal(app.store.getCase('FW-001')!.status, 'questionnaire');
 });
+
+test('a worker who asks for a different Slack email after intake gets it confirmed and a re-invite is offered', async () => {
+  const app = await makeApp();
+  await runPhase1(app, quiet);
+  await command(app, 'U_MGR_DANA', 'invite FW-001');
+  app.mocks.email!.replyAsWorker({ from: ROSA, text: 'Email for Slack invite: rosa.work@example.org' });
+  const { pollEmail } = await import('../src/engine/intake.ts');
+  await pollEmail(app);
+  assert.match(app.mocks.email!.sent(ROSA).at(-1)!.body, /I'll use rosa\.work@example\.org/);
+  const notice = app.mocks.slack!.posts('U_MGR_DANA').at(-1)!;
+  assert.match(notice.text, /asked to use \*rosa\.work@example\.org\*/);
+  assert.match(notice.buttons!, /invite FW-001/);
+  assert.match((await command(app, 'U_MGR_DANA', 'invite FW-001')).text, /invitation sent to rosa\.work@example\.org/);
+  assert.equal(getInvitation(app, 'FW-001')!.email, 'rosa.work@example.org');
+});

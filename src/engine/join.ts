@@ -54,7 +54,10 @@ export async function requestInvite(ctx: EngineContext, c: CaseRow, managerId: s
   if (problems.length) throw new UserError(`Not ready to invite ${c.worker_name}: ${problems.join('; ')}.`);
   const email = ctx.store.checklist(c.id).find((i) => i.key === 'slack_email')!.value!;
   const existing = getInvitation(ctx, c.id);
-  if (existing && existing.state !== 'failed') return `Invitation for ${c.id} is already ${existing.state}.`;
+  // A new Slack email (the worker asked to change it) allows a fresh invite unless they already joined.
+  const emailChanged = existing && existing.email !== email && existing.state !== 'membership_confirmed';
+  if (existing && existing.state !== 'failed' && !emailChanged) return `Invitation for ${c.id} is already ${existing.state}.`;
+  if (emailChanged) ctx.store.audit(c.id, managerId, 'reinvite_new_email', { from: existing!.email, to: email });
 
   ctx.store.transaction(() => {
     ctx.store.db

@@ -1,6 +1,6 @@
 import type { EngineContext } from './context.ts';
 import { postSlack, sendEmail } from './context.ts';
-import { CHECKLIST, CV_ITEM, QUESTIONS, REQUIRED_KEYS, parseAnswers, questionnaireTemplate } from './questionnaire.ts';
+import { CHECKLIST, CV_ITEM, QUESTIONS, REQUIRED_KEYS, parseAnswers, questionnaireTemplate, stripQuoted } from './questionnaire.ts';
 import type { ParsedAnswer } from './questionnaire.ts';
 import { extractFreeformAnswers } from './reply-extract.ts';
 import type { CaseRow, InboundEmail } from '../types.ts';
@@ -140,9 +140,12 @@ export async function processInboundEmail(ctx: EngineContext, msg: InboundEmail)
   const { caseRow, messageId } = phaseA;
   // Questions still open after the labelled parse go to the local model (validated, verbatim excerpts).
   const labelled = new Set(parseAnswers(msg.text).answers.filter((a) => 'value' in a.result).map((a) => a.key));
-  const open = store.checklist(caseRow.id).filter((i) => i.status !== 'complete' && i.key !== CV_ITEM.key && !labelled.has(i.key)).map((i) => i.key);
+  // Workers can change their Slack email at any time ("can I use this address instead?"), so it is always asked about.
+  const open = store.checklist(caseRow.id).filter((i) => (i.status !== 'complete' || i.key === 'slack_email') && i.key !== CV_ITEM.key && !labelled.has(i.key)).map((i) => i.key);
   const modelAnswers = await extractFreeformAnswers(ctx, caseRow, msg.text, open);
+  const slackEmailBefore = store.checklist(caseRow.id).find((i) => i.key === 'slack_email')?.value ?? null;
   const completed = store.transaction(() => applyReply(ctx, caseRow, msg, messageId, modelAnswers));
+  const slackEmailAfter = store.checklist(caseRow.id).find((i) => i.key === 'slack_email')?.value ?? null;
   const items = store.checklist(caseRow.id);
   const stillMissing = items.filter((i) => REQUIRED_KEYS.has(i.key) && i.status !== 'complete').map((i) => i.key);
   const intakeComplete = stillMissing.length === 0;
@@ -165,6 +168,26 @@ export async function processInboundEmail(ctx: EngineContext, msg: InboundEmail)
       actionKey: `slack:intake-complete:${caseRow.id}`, caseId: caseRow.id, kind: 'intake_complete', channel: caseRow.manager_slack_id,
       text: `✅ Intake complete for *${caseRow.worker_name}* (${caseRow.id}). CV, name and Slack email received.\nAfter they join Slack I'll ask ${planned.length} questions: ${planned.map((q) => labelFor(q.field)).join(', ')}.`,
       buttons: [{ text: 'Invite to Slack', command: `invite ${caseRow.id}`, style: 'primary' }, { text: 'Status', command: `status ${caseRow.id}` }],
+    });
+  } else if (intakeComplete && caseRow.status !== 'intake') {
+    // A reply after intake: never silently dropped. Tell the manager; handle a Slack email change.
+    const changed = slackEmailAfter !== slackEmailBefore && slackEmailAfter;
+    const snippet = stripQuoted(msg.text).trim().replace(/\s+/g, ' ').slice(0, 220);
+    if (changed) {
+      await sendEmail(ctx, {
+        actionKey: `email:slack-email-changed:${caseRow.id}:${msg.providerMessageId}`, caseId: caseRow.id, kind: 'slack_email_changed', to: caseRow.worker_email, replyTo: msg.providerMessageId,
+        subject: 'Updated: your Slack invite email',
+        text: `Hi ${preferredName(ctx, caseRow)},\n\nGot it. I'll use ${slackEmailAfter} for your Slack invitation. Your manager will send a fresh invite to that address.\n\n— Onboarding assistant`,
+      });
+    }
+    await postSlack(ctx, {
+      actionKey: `slack:reply-after-intake:${caseRow.id}:${msg.providerMessageId}`, caseId: caseRow.id, kind: 'reply_update', channel: caseRow.manager_slack_id,
+      text: changed
+        ? `📩 *${caseRow.worker_name}* asked to use *${slackEmailAfter}* for Slack instead of ${slackEmailBefore ?? 'the old address'}. I've confirmed it with them by email.`
+        : `📩 *${caseRow.worker_name}* replied: "${snippet}"`,
+      buttons: changed
+        ? [{ text: `Re-invite ${slackEmailAfter}`, command: `invite ${caseRow.id}`, style: 'primary' }, { text: 'Status', command: `status ${caseRow.id}` }]
+        : [{ text: 'Status', command: `status ${caseRow.id}` }],
     });
   } else if (!intakeComplete) {
     await followUp(ctx, caseRow, msg.providerMessageId);

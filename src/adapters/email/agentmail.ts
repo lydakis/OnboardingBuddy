@@ -17,12 +17,28 @@ export class AgentMailAdapter implements EmailAdapter {
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(20000),
-    });
+    const call = () =>
+      fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(20000),
+      });
+    let res: Response;
+    try {
+      res = await call();
+    } catch (err) {
+      // Reads are safe to retry once (stale keep-alive sockets surface as "fetch failed").
+      // Sends are not: their outcome is unknown, so the outbox marks them uncertain instead.
+      if (method !== 'GET') throw err;
+      await new Promise((r) => setTimeout(r, 500));
+      try {
+        res = await call();
+      } catch (again) {
+        const cause = (again as { cause?: { code?: string; message?: string } }).cause;
+        throw new Error(`agentmail ${method} ${path.split('?')[0]}: ${cause?.code ?? cause?.message ?? String(again)}`);
+      }
+    }
     if (res.status >= 400 && res.status < 500) throw new DefiniteSendFailure(`agentmail ${method} ${path}: HTTP ${res.status}`);
     if (!res.ok) throw new Error(`agentmail ${method} ${path}: HTTP ${res.status}`);
     return (await res.json()) as T;
