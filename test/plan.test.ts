@@ -5,6 +5,7 @@ import { runPhase1, runPhase2 } from '../src/demo/scenario.ts';
 import { PlanNotApprovedError, approvePlan, latestPlan, planContent, planSummary, proposePlan, sendApprovedPlan } from '../src/engine/plan.ts';
 import { validateExtraction } from '../src/engine/extract.ts';
 import { buildPlan, loadPolicy } from '../src/engine/policy.ts';
+import { decodeTrainingUrl } from '../src/engine/training-link.ts';
 import { MockLlm } from '../src/adapters/llm/mock.ts';
 
 const quiet = () => {};
@@ -80,6 +81,19 @@ test('approval sends the exact previewed plan to the worker in Slack, once', asy
   assert.match(reply.text, /sent it to <@U_ROSA> in Slack/);
   assert.equal(app.mocks.email!.sent('rosa.delgado@example.net').filter((m) => m.subject.includes('approved')).length, 0);
   assert.equal(app.store.getCase('FW-001')!.status, 'plan_sent');
+
+  // The DM links to the interactive training; the plan rides in the URL fragment, never the path or query.
+  const url = dms[0]!.text.match(/<(https:[^|>]+)\|Start your interactive training>/)![1]!;
+  assert.match(url, /^https:\/\/onboarding-buddy-chi\.vercel\.app\/training\/#p=[A-Za-z0-9_-]+$/);
+  const payload = decodeTrainingUrl(url);
+  const plan = planContent(latestPlan(app, 'FW-001')!);
+  assert.equal(payload.n, 'Rosa');
+  assert.equal(payload.t, 'experienced');
+  assert.equal(payload.s, '06:00');
+  assert.deepEqual(payload.d[0], [1, plan.schedule[0]!.modules, 0]);
+  assert.equal(payload.h['SCAN-120'], 0.5);
+  assert.ok(payload.w.some((w) => /30-minute refresher/.test(w)));
+  assert.doesNotMatch(url, /rosa\.delgado|example\.net/, 'no email or surname in the link');
 });
 
 test('tailoring only adds training from the worker\'s answers, with their answer as evidence', () => {
