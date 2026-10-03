@@ -16,8 +16,11 @@ export function questionnaireFacts(ctx: EngineContext, caseId: string, cvFacts: 
     const excerpt = i.excerpt;
     if (i.field === 'delivery') {
       if (v.confirmed) {
-        const cvYears = cvFacts.filter((f) => f.source === 'cv' && f.name === 'parcel_delivery_years').reduce((a, f) => a + Number(f.value), 0);
-        fact('parcel_delivery_years', cvYears, excerpt);
+        // "Yes, that's right" confirms all delivery work on the CV, parcel and other.
+        const years = (name: Fact['name']) => cvFacts.filter((f) => f.source === 'cv' && f.name === name).reduce((a, f) => a + Number(f.value), 0);
+        fact('parcel_delivery_years', years('parcel_delivery_years'), excerpt);
+        const other = years('other_delivery_years');
+        if (other > 0) fact('other_delivery_years', other, excerpt);
       } else if (typeof v.years === 'number') {
         fact(v.kind === 'parcel' ? 'parcel_delivery_years' : 'other_delivery_years', v.years, excerpt);
       }

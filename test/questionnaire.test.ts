@@ -83,3 +83,17 @@ test('answers feed the plan: drafted for the manager on confirm, Theo blocked on
   await command(app, 'U_MGR_DANA', 'approve FW-001 v1');
   assert.match(app.mocks.slack!.posts('U_ROSA').find((p) => p.text.includes('approved your two-week'))!.text, /approved your two-week training plan[\s\S]*Tailored for you[\s\S]*30-minute refresher[\s\S]*06:00/);
 });
+
+test('confirming CV experience never conflicts with a CV that mixes parcel and other delivery work', async () => {
+  const { buildPlan, loadPolicy } = await import('../src/engine/policy.ts');
+  const cv = [
+    { name: 'parcel_delivery_years', value: 1.5, source: 'cv', excerpt: 'Contract Delivery Driver — 2025 to 2026', confidence: 'high' },
+    { name: 'other_delivery_years', value: 2, source: 'cv', excerpt: 'Food Delivery Courier — 2023 to 2025', confidence: 'high' },
+  ] as const;
+  const confirmed = [
+    { name: 'parcel_delivery_years', value: 1.5, source: 'questionnaire', excerpt: "Yes, that's right", confidence: 'high' },
+    { name: 'other_delivery_years', value: 2, source: 'questionnaire', excerpt: "Yes, that's right", confidence: 'high' },
+  ] as const;
+  const plan = buildPlan(loadPolicy(), { facts: [...cv, ...confirmed], extractionErrors: [], extractionFailed: false, licenseAnswer: null, licenseExcerpt: null, injectionExcerpt: null, overrides: { add: [], remove: [], resolved: {} } } as never);
+  assert.ok(!plan.reviewItems.some((r) => r.id === 'experience-conflict'));
+});

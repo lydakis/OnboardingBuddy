@@ -131,7 +131,8 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
   const parcelCv = f('parcel_delivery_years', 'cv');
   const parcelCvYears = sum(parcelCv.map((x) => Number(x.value)));
   const claimed = [...f('parcel_delivery_years', 'questionnaire'), ...f('other_delivery_years', 'questionnaire')];
-  const claimedYears = claimed.length ? Math.max(...claimed.map((x) => Number(x.value))) : 0;
+  // Total claimed delivery work (parcel + other), compared with the CV's total below.
+  const claimedYears = Math.round(claimed.reduce((a, x) => a + Number(x.value), 0) * 10) / 10;
   const cvDeliveryYears = sum([...parcelCv, ...f('other_delivery_years', 'cv')].map((x) => Number(x.value)));
   const licenseFacts = f('license_class');
   const hasLicense = input.licenseAnswer !== null ? input.licenseAnswer !== 'none' : licenseFacts.some((x) => String(x.value).toLowerCase() !== 'none');
