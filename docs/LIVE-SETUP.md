@@ -68,7 +68,7 @@ The app finds `ml/.venv` and `ml/artifacts/catboost.cbm` on its own. Use `OB_REA
 
 ### Interactive training link
 
-The approved-plan DM links to `https://onboarding-buddy-chi.vercel.app/training/#p=...`, a static page in `site/training/`. The plan rides in the URL fragment, which the browser never sends to the server, so nothing about the worker is uploaded. Override the base with `OB_TRAINING_URL`, or set it to `off` to leave the link out.
+The approved-plan DM links to `https://onboarding-buddy-chi.vercel.app/training/#p=...`, a static page in `site/training/`. The plan rides in the URL fragment, which the browser never sends to the server, so nothing about the worker is uploaded. Override the base with `OB_TRAINING_URL`, or set it to `off` to leave the link out. When a plan is drafted, the local model also writes each module's intro and scenario around the hire's CV facts and answers (one call per plan, validated, approved with the plan). Set `OB_TAILORED_LESSONS=off` to use the standard lessons only.
 
 ## 4. Before the first real send
 

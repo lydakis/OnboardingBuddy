@@ -9,7 +9,8 @@ import { newId, now } from '../db/store.ts';
 import { answeredValue, questionnaireFacts } from './features.ts';
 import { items } from './slack-questionnaire.ts';
 import { predictReadiness } from './readiness.ts';
-import { TRAINING_BASE_URL, trainingPayload, trainingUrl } from './training-link.ts';
+import { TRAINING_BASE_URL, fitTrainingUrl, trainingPayload } from './training-link.ts';
+import { generateLessons } from './lessons.ts';
 import type { CaseRow, SlackButton } from '../types.ts';
 
 type Overrides = PlanInputs['overrides'];
@@ -102,6 +103,9 @@ export async function proposePlan(ctx: EngineContext, c: CaseRow, actor: string,
     readiness,
     overrides: ov,
   });
+  const previousLessons = previous ? planContent(previous).lessons : undefined;
+  const lessons = await generateLessons(ctx, c, content, previousLessons ?? {});
+  if (Object.keys(lessons).length) content.lessons = lessons;
   const stored: StoredPlan = { ...content, overrideInput: ov };
   const version = (previous?.version ?? 0) + 1;
   const status = unresolvedBlocking(content).length > 0 ? 'needs_review' : 'proposed';
@@ -132,6 +136,8 @@ export function planSummary(c: CaseRow, row: PlanRow): { text: string; buttons: 
     ...p.track.evidence.slice(0, 3).map((e) => `   ↳ ${e.source}: "${e.excerpt}"`),
   ];
   if (p.readiness) lines.push(`*Readiness estimate:* ${LEVEL[p.readiness.label]} (${Math.round(p.readiness.confidence * 100)}%) · advisory, from work history and answers only`);
+  const tailoredLessons = Object.keys(p.lessons ?? {}).length;
+  if (tailoredLessons) lines.push(`*Lessons:* ${tailoredLessons} of ${p.modules.length} written for ${c.worker_name.split(' ')[0]}'s background. Open the preview to read them.`);
   if (tailoring.length) lines.push('*Tailored for them:*', ...tailoring.map((t) => `   • ${t.module ? `${t.module}: ` : ''}${t.reason}${t.evidence[0] && !/^\w+: \d\/5$/.test(t.evidence[0].excerpt) ? ` ↳ "${t.evidence[0].excerpt}"` : ''}`));
   lines.push('*Day by day:*');
   for (const d of p.schedule) {
@@ -164,11 +170,8 @@ export function workerPlanMessage(ctx: EngineContext, c: CaseRow, row: PlanRow):
   const days = p.schedule
     .filter((s) => s.modules.length || s.targetStops)
     .map((s) => `• *Day ${s.day}:* ${s.modules.map((id) => p.modules.find((m) => m.id === id)!.title).join('; ') || 'On route'}${s.targetStops ? ` (up to ${s.targetStops} stops)` : ''}`);
-  const firstName = String(name).trim().split(/\s+/)[0]!;
-  const link = TRAINING_BASE_URL === 'off' ? '' : trainingUrl(trainingPayload(c.id, row.version, firstName, p, why));
   return [
     `🎉 Hi ${name}, your manager approved your two-week training plan: *${p.track.label}*.`,
-    link ? `👉 *<${link}|Start your interactive training>*: short lessons, quick checks and your two-week route, at your own pace.` : '',
     '',
     '*Tailored for you*',
     ...why.map((w) => `• ${w}`),
@@ -178,6 +181,17 @@ export function workerPlanMessage(ctx: EngineContext, c: CaseRow, row: PlanRow):
     '',
     'Stop numbers are the standard ramp for every new courier, not a judgement on you. Ask me here anytime.',
   ].filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i > 0)).join('\n').replace(/\n\n+/g, '\n\n');
+}
+
+/** Second DM: the link to the worker's interactive training page (null when turned off). */
+export function trainingLinkMessage(ctx: EngineContext, c: CaseRow, row: PlanRow): string | null {
+  if (TRAINING_BASE_URL === 'off') return null;
+  const p = planContent(row);
+  const name = String(ctx.store.checklist(c.id).find((i) => i.key === 'preferred_name')?.value ?? c.worker_name).trim().split(/\s+/)[0]!;
+  const notes = workerPlanMessage(ctx, c, row).split('\n').filter((l) => l.startsWith('• ') && !l.startsWith('• *Day')).map((l) => l.slice(2));
+  const url = fitTrainingUrl(trainingPayload(c.id, row.version, name, p, notes));
+  const tailored = Object.keys(p.lessons ?? {}).length > 0;
+  return `👉 *<${url}|Start your interactive training>*\n${tailored ? 'Short lessons written around your experience, quick checks and your two-week route.' : 'Short lessons, quick checks and your two-week route.'} Go at your own pace; your progress saves on your phone.`;
 }
 
 export async function approvePlan(ctx: EngineContext, c: CaseRow, version: number, managerId: string): Promise<PlanRow> {
@@ -216,6 +230,8 @@ export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: 
   // Workers get the plan in their Slack DM once they've joined; email is the fallback before that.
   if (c.slack_user_id && !resendTo) {
     const r = await postSlack(ctx, { actionKey: `slack:plan-dm:${c.id}:v${version}`, caseId: c.id, kind: 'plan', channel: c.slack_user_id, text: workerPlanMessage(ctx, c, row) });
+    const link = trainingLinkMessage(ctx, c, row);
+    if (link) await postSlack(ctx, { actionKey: `slack:plan-link:${c.id}:v${version}`, caseId: c.id, kind: 'plan', channel: c.slack_user_id, text: link });
     if (r.state === 'sent') markSent(ctx, c, row);
     return 'slack';
   }
@@ -308,7 +324,8 @@ registerCommand('plan-preview', 'plan-preview <case> [version]', async (ctx, arg
   const buttons: SlackButton[] = row.status === 'proposed' && row.version === latestPlan(ctx, c.id)!.version
     ? [{ text: `Approve and send v${row.version}`, command: `approve ${c.id} v${row.version}`, style: 'primary' }, { text: 'Request revision', command: `revise ${c.id}` }]
     : [];
-  return { text: `👀 Here's exactly what ${c.worker_name} will get in Slack when you approve v${row.version}:\n\n${workerPlanMessage(ctx, c, row)}`, buttons };
+  const link = trainingLinkMessage(ctx, c, row);
+  return { text: `👀 Here's exactly what ${c.worker_name} will get in Slack when you approve v${row.version}:\n\n${workerPlanMessage(ctx, c, row)}${link ? `\n\n${link}` : ''}`, buttons };
 });
 
 registerCommand('revise', 'revise <case> [track=..] [add=MOD] [remove=MOD] [resolve=<review id>] "note"', async (ctx, args, event) => {

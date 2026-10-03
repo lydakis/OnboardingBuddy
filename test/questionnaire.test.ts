@@ -81,5 +81,5 @@ test('answers feed the plan: drafted for the manager on confirm, Theo blocked on
   assert.equal(rosa.modules.find((m) => m.id === 'SCAN-120')!.hours, 0.5);
   assert.deepEqual(rosa.tailoring, [], 'confident answers add nothing');
   await command(app, 'U_MGR_DANA', 'approve FW-001 v1');
-  assert.match(app.mocks.slack!.posts('U_ROSA').at(-1)!.text, /approved your two-week training plan[\s\S]*Tailored for you[\s\S]*30-minute refresher[\s\S]*06:00/);
+  assert.match(app.mocks.slack!.posts('U_ROSA').find((p) => p.text.includes('approved your two-week'))!.text, /approved your two-week training plan[\s\S]*Tailored for you[\s\S]*30-minute refresher[\s\S]*06:00/);
 });

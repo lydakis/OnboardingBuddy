@@ -286,6 +286,8 @@ section.blk{padding-block:34px 8px}
   .seqbtns{grid-template-columns:1fr 1fr 1fr}
   .chips{grid-template-columns:1fr}
 }
+.foryou{margin:14px 0 0;padding:12px 14px;background:var(--hivis-soft);border-left:4px solid var(--hivis);border-radius:var(--r);color:var(--ink);line-height:1.5}
+.foryou small{display:block;font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--hivis-ink);margin-bottom:4px}
 </style>
 </head>
 <body>
@@ -562,14 +564,39 @@ var DEMO={v:1,n:"Rosa",c:"FW-DEMO",pv:1,t:"experienced",tl:"Experienced Courier 
  h:{"SAFE-101":3,"DOT-110":1,"SCAN-120":0.5,"LIFT-130":1,"VEH-210":1,"ROUTE-310":1.5,"RIDE-300":8},
  w:["Your parcel route experience puts you on the Experienced Courier track: one ride-along day, then a faster ramp.","Scanner training is a 30-minute refresher, since you've used a handheld scanner before."]};
 
-function decode(){
+function b64bytes(raw){
+ var b=raw.replace(/-/g,'+').replace(/_/g,'/'); while(b.length%4) b+='=';
+ var bin=atob(b), bytes=new Uint8Array(bin.length);
+ for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+ return bytes;
+}
+/* #z= is deflate-raw compressed JSON (plans with tailored lessons); #p= is plain JSON. */
+function readHash(){
  try{
-  var hs=location.hash.replace(/^#/,''); if(!hs) return null;
-  var raw=new URLSearchParams(hs).get('p'); if(!raw) return null;
-  var b=raw.replace(/-/g,'+').replace(/_/g,'/'); while(b.length%4) b+='=';
-  var bin=atob(b), bytes=new Uint8Array(bin.length);
-  for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-  var o=JSON.parse(new TextDecoder().decode(bytes));
+  var hs=new URLSearchParams(location.hash.replace(/^#/,''));
+  var z=hs.get('z'), p=hs.get('p');
+  if(z&&typeof DecompressionStream!=='undefined'){
+   var st=new Blob([b64bytes(z)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+   return new Response(st).text().catch(function(){return null;});
+  }
+  return Promise.resolve(p?new TextDecoder().decode(b64bytes(p)):null);
+ }catch(e){return Promise.resolve(null);}
+}
+function cleanLessons(l){
+ var out={};
+ if(!l||typeof l!=='object') return out;
+ Object.keys(l).slice(0,20).forEach(function(id){
+  var x=l[id]; if(!x||typeof x.i!=='string'||typeof x.s!=='string'||!Array.isArray(x.c)||x.c.length!==3) return;
+  var c=x.c.map(function(r){return Array.isArray(r)&&typeof r[0]==='string'&&typeof r[2]==='string'?{t:r[0].slice(0,140),best:r[1]===1,f:r[2].slice(0,220)}:null;});
+  if(c.some(function(v){return !v;})||c.filter(function(v){return v.best;}).length!==1) return;
+  out[id]={i:x.i.slice(0,260),s:x.s.slice(0,300),c:c};
+ });
+ return out;
+}
+function decode(text){
+ try{
+  if(!text) return null;
+  var o=JSON.parse(text);
   if(!o||typeof o!=='object'||!Array.isArray(o.d)||!o.d.length) return null;
   var days=[];
   o.d.forEach(function(r){
@@ -583,7 +610,7 @@ function decode(){
   days.sort(function(a,b){return a[0]-b[0];});
   return {n:typeof o.n==='string'&&o.n.trim()?o.n.trim().slice(0,40):'there',c:String(o.c||'plan').slice(0,40),pv:parseInt(o.pv,10)||1,
    t:o.t==='foundations'?'foundations':'experienced',tl:typeof o.tl==='string'?o.tl.slice(0,80):'',s:typeof o.s==='string'?o.s.slice(0,12):null,
-   d:days,h:(o.h&&typeof o.h==='object')?o.h:{},w:Array.isArray(o.w)?o.w.filter(function(x){return typeof x==='string';}).slice(0,6):[]};
+   d:days,h:(o.h&&typeof o.h==='object')?o.h:{},w:Array.isArray(o.w)?o.w.filter(function(x){return typeof x==='string';}).slice(0,6):[],l:cleanLessons(o.l)};
  }catch(e){return null;}
 }
 
@@ -591,8 +618,10 @@ var P,SAMPLE,KEY,S;
 function load(){try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);if(o&&typeof o==='object')return {m:o.m||{},tips:o.tips||{},ask:o.ask||{}};}}catch(e){}return {m:{},tips:{},ask:{}};}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
-function init(){
- P=decode(); SAMPLE=!P; if(SAMPLE) P=DEMO;
+function init(){ readHash().then(start,function(){start(null);}); }
+function start(text){
+ P=decode(text); SAMPLE=!P; if(SAMPLE) P=DEMO;
+ if(!P.l) P.l={};
  KEY='ob-training:'+P.c+':v'+P.pv;
  S=load();
  document.getElementById('ribbon').hidden=!SAMPLE;
@@ -704,7 +733,8 @@ document.addEventListener('click',function(e){
 /* ---------- lesson ---------- */
 var L=null;
 function openLesson(id,from){
- var mod=M[id];
+ var mod=M[id], mine=P.l&&P.l[id];
+ if(mod&&mine) mod=Object.assign({},mod,{scenario:{s:mine.s,c:mine.c},forYou:mine.i});
  var steps=[];
  if(mod){
   mod.points.forEach(function(p,i){steps.push({k:'point',i:i});});
@@ -716,7 +746,7 @@ function openLesson(id,from){
  var home=document.getElementById('home'),les=document.getElementById('lesson');
  home.hidden=true; les.hidden=false;
  var h='<div class="lbar"><div class="lbar-in"><button class="back" id="lback">'+ico('left')+'Route</button><code id="lcount"></code></div><div class="prog" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100" id="lprog"><i></i></div></div>';
- h+='<div class="lhead"><p class="eyebrow">'+esc(id)+(P.h[id]?' · '+esc(fmtH(P.h[id]))+' with your supervisor':'')+'</p><h1>'+esc(modTitle(id))+'</h1>'+(mod?'<p class="why">'+esc(mod.why)+'</p>':'')+'</div>';
+ h+='<div class="lhead"><p class="eyebrow">'+esc(id)+(P.h[id]?' · '+esc(fmtH(P.h[id]))+' with your supervisor':'')+'</p><h1>'+esc(modTitle(id))+'</h1>'+(mod?'<p class="why">'+esc(mod.why)+'</p>':'')+(mod&&mod.forYou?'<div class="foryou"><small>For you</small>'+esc(mod.forYou)+'</div>':'')+'</div>';
  h+='<div id="lstep"></div><div class="lnav" id="lnav"><button class="btn" id="lprev">Back</button><button class="btn primary" id="lnext">Next</button></div>';
  les.innerHTML=h;
  document.title=id+' · Courier Training';

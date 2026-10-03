@@ -53,6 +53,13 @@ export interface Readiness {
   confidence: number;
 }
 
+/** A lesson the local model tailored to one worker: intro, situation, and [text, best 0/1, feedback] choices. */
+export interface Lesson {
+  i: string;
+  s: string;
+  c: [string, 0 | 1, string][];
+}
+
 export interface Tailoring {
   ruleId: string;
   module: string | null;
@@ -101,6 +108,8 @@ export interface PlanContent {
   tailoring?: Tailoring[];
   /** Advisory readiness estimate from the local model; never changes modules or targets. */
   readiness?: Readiness;
+  /** Per-module lessons tailored to this worker (validated model output; approved with the plan). */
+  lessons?: Record<string, Lesson>;
   rideAlongStart?: { shift: string; time: string; rule: string };
 }
 
