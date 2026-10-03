@@ -9,6 +9,7 @@ import { newId, now } from '../db/store.ts';
 import { answeredValue, questionnaireFacts } from './features.ts';
 import { items } from './slack-questionnaire.ts';
 import { predictReadiness } from './readiness.ts';
+import { TRAINING_BASE_URL, trainingPayload, trainingUrl } from './training-link.ts';
 import type { CaseRow, SlackButton } from '../types.ts';
 
 type Overrides = PlanInputs['overrides'];
@@ -163,8 +164,11 @@ export function workerPlanMessage(ctx: EngineContext, c: CaseRow, row: PlanRow):
   const days = p.schedule
     .filter((s) => s.modules.length || s.targetStops)
     .map((s) => `• *Day ${s.day}:* ${s.modules.map((id) => p.modules.find((m) => m.id === id)!.title).join('; ') || 'On route'}${s.targetStops ? ` (up to ${s.targetStops} stops)` : ''}`);
+  const firstName = String(name).trim().split(/\s+/)[0]!;
+  const link = TRAINING_BASE_URL === 'off' ? '' : trainingUrl(trainingPayload(c.id, row.version, firstName, p, why));
   return [
     `🎉 Hi ${name}, your manager approved your two-week training plan: *${p.track.label}*.`,
+    link ? `👉 *<${link}|Start your interactive training>*: short lessons, quick checks and your two-week route, at your own pace.` : '',
     '',
     '*Tailored for you*',
     ...why.map((w) => `• ${w}`),
@@ -173,7 +177,7 @@ export function workerPlanMessage(ctx: EngineContext, c: CaseRow, row: PlanRow):
     ...days,
     '',
     'Stop numbers are the standard ramp for every new courier, not a judgement on you. Ask me here anytime.',
-  ].filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i > 0)).join('\n');
+  ].filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i > 0)).join('\n').replace(/\n\n+/g, '\n\n');
 }
 
 export async function approvePlan(ctx: EngineContext, c: CaseRow, version: number, managerId: string): Promise<PlanRow> {

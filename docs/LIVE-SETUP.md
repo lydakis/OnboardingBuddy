@@ -66,6 +66,10 @@ cd ml && uv sync --python 3.12 && uv run python synthetic.py --rows 1000 --seed 
 
 The app finds `ml/.venv` and `ml/artifacts/catboost.cbm` on its own. Use `OB_READINESS_CMD` to point it at another command, which gets the snapshot path appended and must print `predict.py`'s JSON. Set `OB_READINESS=off` to disable it. Without a trained model, plans are drafted the same way, just with no estimate.
 
+### Interactive training link
+
+The approved-plan DM links to `https://onboarding-buddy-chi.vercel.app/training/#p=...`, a static page in `site/training/`. The plan rides in the URL fragment, which the browser never sends to the server, so nothing about the worker is uploaded. Override the base with `OB_TRAINING_URL`, or set it to `off` to leave the link out.
+
 ## 4. Before the first real send
 
 Run `npm run live:check` on the GB10. It calls `auth.test`, checks scopes, lists the AgentMail inbox and pings the model, and sends nothing. Then tell Claude which recipient addresses are approved for the first real welcome email and invite.
