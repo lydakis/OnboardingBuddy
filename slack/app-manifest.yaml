@@ -1,16 +1,16 @@
 # Chat bot: install in the Fleetwing demo workspace.
 # Workspace invitations use the separate provisioning-app-manifest.yaml app.
 display_information:
-  name: Onboarding Buddy
-  description: Fleetwing Express (fictional) onboarding assistant, hackathon demo
-  background_color: "#4d148c"
+  name: Fleetwing Onboarding Agent
+  description: Onboards new Fleetwing couriers (fictional demo)
+  background_color: "#14181B"
 features:
   app_home:
     home_tab_enabled: false
     messages_tab_enabled: true
     messages_tab_read_only_enabled: false
   bot_user:
-    display_name: Onboarding Buddy
+    display_name: Fleetwing Onboarding Agent
     always_online: true
   slash_commands:
     - command: /onboard
