@@ -106,7 +106,9 @@ export function validateRoster(raw: string, text: string, openCaseEmails: Set<st
     if (seen.has(email)) { review.push({ row, text: `${email} appears more than once; I kept the first.` }); continue; }
     seen.add(email);
     if (openCaseEmails.has(email)) { review.push({ row, text: `${name} (${email}) already has an onboarding case.` }); continue; }
-    people.push({ name, email, row, note: typeof o.note === 'string' && o.note ? o.note.slice(0, 120) : undefined });
+    // "Patel, Dev" → "Dev Patel" so greetings use the first name.
+    const display = /^[^,]+,\s*[^,]+$/.test(name) ? name.replace(/^([^,]+),\s*(.+)$/, '$2 $1') : name;
+    people.push({ name: display, email, row, note: typeof o.note === 'string' && o.note ? o.note.slice(0, 120) : undefined });
   }
   for (const u of Array.isArray(parsed.unclear) ? parsed.unclear : []) {
     const o = u as Record<string, unknown>;

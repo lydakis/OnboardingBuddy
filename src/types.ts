@@ -137,6 +137,8 @@ export interface SlackUser {
   realName?: string;
   isBot?: boolean;
   deleted?: boolean;
+  /** Enterprise invites pre-create the account; it stays "invited" until the person actually joins. */
+  invited?: boolean;
 }
 
 export interface SlackAdapter {

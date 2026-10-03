@@ -43,6 +43,7 @@ test('people the model invents or misattributes are never onboarded', () => {
   });
   const { people, review } = validateRoster(raw, text, new Set());
   assert.deepEqual(people.map((p) => p.email), ['maya.chen@example.net']);
+  assert.equal(validateRoster(JSON.stringify({ people: [{ name: 'Okafor, Jordan', email: 'jordan@example.net', row: 3 }] }), 'R3: Okafor, Jordan | jordan@example.net', new Set()).people[0]!.name, 'Jordan Okafor');
   assert.ok(review.some((r) => /Attacker/.test(r.text)));
   assert.ok(review.some((r) => /Jordan Okafor.*doesn't match row 3/.test(r.text)));
 });

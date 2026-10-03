@@ -86,3 +86,21 @@ test('live connectors refuse recipients that are not on the allowlist', async ()
   assert.deepEqual(sent, ['rosa+demo@example.net']);
   assert.equal(app.store.getOutbox('email:welcome:FW-001')!.status, 'failed');
 });
+
+test('an Enterprise-invited account that has not joined yet is never treated as a member', async () => {
+  const app = await makeApp();
+  await runPhase1(app, quiet);
+  await command(app, 'U_MGR_DANA', 'invite FW-001');
+  // Slack pre-creates the invited user; lookupByEmail finds it before they join.
+  app.adapters.slack.lookupUserByEmail = async () => ({ id: 'U_PENDING', email: ROSA, invited: true });
+  assert.match((await command(app, 'U_MGR_DANA', 'verify-join FW-001')).text, /hasn't finished joining/);
+  assert.equal(await handleTeamJoin(app, { eventId: 'E9', user: { id: 'U_PENDING', email: ROSA, invited: true } }), 'still only invited');
+  assert.equal(app.store.getCase('FW-001')!.slack_user_id, null);
+  assert.equal(getInvitation(app, 'FW-001')!.state, 'sent');
+
+  const { checkPendingJoins } = await import('../src/engine/join.ts');
+  assert.deepEqual(await checkPendingJoins(app), [], 'still invited: nothing confirmed');
+  app.adapters.slack.lookupUserByEmail = async () => ({ id: 'U_PENDING', email: ROSA, invited: false });
+  assert.deepEqual(await checkPendingJoins(app), ['FW-001']);
+  assert.equal(app.store.getCase('FW-001')!.status, 'questionnaire');
+});

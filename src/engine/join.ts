@@ -69,7 +69,7 @@ export async function requestInvite(ctx: EngineContext, c: CaseRow, managerId: s
 
   // Already a member (e.g. re-hire or earlier manual invite): verify instead of inviting.
   const member = await ctx.adapters.slack.lookupUserByEmail(email).catch(() => null);
-  if (member && !member.deleted) {
+  if (member && !member.deleted && !member.invited) {
     await confirmMembership(ctx, c, member, 'existing member found by exact email');
     return `${email} is already in the workspace as <@${member.id}>; linked to ${c.id} and welcomed.`;
   }
@@ -112,6 +112,7 @@ export async function handleTeamJoin(ctx: EngineContext, event: SlackTeamJoinEve
   if (!ctx.store.claimEvent(`slack:${event.eventId}`, null, 'processing')) return 'duplicate';
   const user = event.user;
   if (user.isBot) return 'ignored bot';
+  if (user.invited) return 'still only invited';
   const pending = ctx.store.db
     .prepare(`SELECT * FROM invitations WHERE state IN ('requested','sent','manual_pending','needs_review')`)
     .all() as unknown as InvitationRow[];
@@ -221,6 +222,25 @@ registerCommand('verify-join', 'verify-join <case>', async (ctx, args) => {
   if (inv.state === 'membership_confirmed') return { text: `${c.worker_name} is already confirmed as <@${inv.slack_user_id}>.` };
   const user = await ctx.adapters.slack.lookupUserByEmail(inv.email);
   if (!user || user.deleted) return { text: `No Slack member with ${inv.email} yet (invitation: ${inv.state}).` };
+  if (user.invited) return { text: `${inv.email} has been invited but hasn't finished joining Slack yet (invitation: ${inv.state}).` };
   await confirmMembership(ctx, c, user, 'users.lookupByEmail exact match');
   return { text: `✅ Confirmed: ${inv.email} is <@${user.id}>. Linked and welcomed.` };
 });
+
+/**
+ * Fallback for workspaces that don't deliver team_join for pre-created invited accounts:
+ * periodically look up each pending invite by its exact email and confirm only once
+ * Slack no longer marks the account as invited.
+ */
+export async function checkPendingJoins(ctx: EngineContext): Promise<string[]> {
+  const pending = ctx.store.db.prepare(`SELECT * FROM invitations WHERE state IN ('sent','manual_pending')`).all() as unknown as InvitationRow[];
+  const confirmed: string[] = [];
+  for (const inv of pending) {
+    const user = await ctx.adapters.slack.lookupUserByEmail(inv.email).catch(() => null);
+    if (!user || user.deleted || user.invited || user.isBot) continue;
+    const c = ctx.store.getCase(inv.case_id)!;
+    await confirmMembership(ctx, c, user, 'users.lookupByEmail: invited account became active');
+    confirmed.push(c.id);
+  }
+  return confirmed;
+}

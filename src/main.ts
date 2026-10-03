@@ -33,6 +33,21 @@ const pollTimer = setInterval(async () => {
   }
 }, config.email.pollIntervalMs);
 
+// Join detection fallback: every 15 s, see whether an invited worker has finished joining.
+let checkingJoins = false;
+const joinTimer = setInterval(async () => {
+  if (checkingJoins || config.slack.mode === 'mock') return;
+  checkingJoins = true;
+  try {
+    const { checkPendingJoins } = await import('./engine/join.ts');
+    for (const id of await checkPendingJoins(app)) log(`join confirmed by lookup: ${id}`);
+  } catch (err) {
+    log(`join check failed: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    checkingJoins = false;
+  }
+}, 15000);
+
 let socket: { stop(): void } | undefined;
 if (config.slack.mode === 'socket') {
   const { SocketModeClient } = await import('./adapters/slack/socket.ts');
@@ -71,6 +86,7 @@ if (config.slack.mode === 'socket') {
 function shutdown(): void {
   log('shutting down');
   clearInterval(pollTimer);
+  clearInterval(joinTimer);
   socket?.stop();
   server.close();
   app.close();

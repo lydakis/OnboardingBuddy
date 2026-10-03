@@ -100,9 +100,10 @@ interface RawUser {
   real_name?: string;
   deleted?: boolean;
   is_bot?: boolean;
+  is_invited_user?: boolean;
   profile?: { email?: string; real_name?: string };
 }
 
 function toUser(u: RawUser): SlackUser {
-  return { id: u.id, email: u.profile?.email, realName: u.real_name ?? u.profile?.real_name, isBot: u.is_bot, deleted: u.deleted };
+  return { id: u.id, email: u.profile?.email, realName: u.real_name ?? u.profile?.real_name, isBot: u.is_bot, deleted: u.deleted, invited: u.is_invited_user === true };
 }

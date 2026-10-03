@@ -95,7 +95,7 @@ export class SocketModeClient {
         if (event.type === 'team_join') {
           await this.handlers.onTeamJoin({
             eventId: `evt:${p.event_id}`,
-            user: { id: event.user?.id, email: event.user?.profile?.email, realName: event.user?.real_name ?? event.user?.profile?.real_name, isBot: event.user?.is_bot, deleted: event.user?.deleted },
+            user: { id: event.user?.id, email: event.user?.profile?.email, realName: event.user?.real_name ?? event.user?.profile?.real_name, isBot: event.user?.is_bot, deleted: event.user?.deleted, invited: event.user?.is_invited_user === true },
           });
         } else if (event.type === 'message' && event.subtype === 'file_share' && event.channel_type === 'im' && !event.bot_id) {
           await this.handlers.onFileShare?.({
