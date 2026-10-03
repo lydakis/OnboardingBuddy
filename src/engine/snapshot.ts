@@ -12,13 +12,13 @@ export type SnapshotScope = 'manager' | `case:${string}`;
 function caseView(ctx: EngineContext, c: CaseRow, withEvidence: boolean) {
   const items = ctx.store.checklist(c.id);
   const row = latestPlan(ctx, c.id);
-  const plan = row ? (({ overrideInput: _o, facts, track, modules, ...rest }) => ({
+  const plan = row ? (({ overrideInput: _o, facts, track, modules, readiness, ...rest }) => ({
     version: row.version,
     status: row.status,
     ...rest,
     track: withEvidence ? track : { id: track.id, label: track.label },
     modules: modules.map((m) => (withEvidence ? m : { id: m.id, title: m.title, hours: m.hours, days: m.days, evidenceRequired: m.evidenceRequired })),
-    ...(withEvidence ? { facts } : {}),
+    ...(withEvidence ? { facts, readiness } : {}),
   }))(planContent(row)) : null;
   const inv = getInvitation(ctx, c.id);
   return {

@@ -61,21 +61,25 @@ test('typed answers: delivery parsing, equipment synonyms, the "nights" nudge, a
   assert.equal(items(app, 'FW-001').find((i) => i.field === 'preferred_shift')!.answer_value_json, '"early"');
 });
 
-test('answers feed the plan: Theo is blocked on conflicting experience, Rosa is Experienced with a shorter scanner module', async () => {
+test('answers feed the plan: drafted for the manager on confirm, Theo blocked on conflicting experience, Rosa Experienced with a shorter scanner module', async () => {
   const app = await makeApp();
   await runPhase1(app, quiet);
   await runPhase2(app, quiet);
-  assert.equal(app.store.getCase('FW-001')!.status, 'questionnaire_complete');
+  assert.equal(app.store.getCase('FW-001')!.status, 'plan_proposed', 'confirming the answers drafts the plan straight away');
   assert.ok(app.store.db.prepare(`SELECT 1 FROM feature_snapshots WHERE case_id = 'FW-002'`).get());
+  assert.match(app.mocks.slack!.posts('U_MGR_DANA').at(-1)!.text, /Training plan v1\* for \*Theo/);
 
-  const theo = planContent(await proposePlan(app, app.store.getCase('FW-002')!, 'U_MGR_DANA'));
+  const theo = planContent(latestPlan(app, 'FW-002')!);
   assert.ok(theo.reviewItems.some((r) => r.id === 'experience-conflict' && r.blocking));
   assert.equal(theo.rideAlongStart?.time, '13:00');
   assert.equal(latestPlan(app, 'FW-002')!.status, 'needs_review');
+  assert.ok(theo.modules.some((m) => m.id === 'SCAN-125'), 'Theo rated scanning 1/5, so he gets a practice lab');
+  assert.ok(theo.tailoring!.some((t) => t.module === 'SCAN-125' && t.evidence[0]!.excerpt === 'scanning: 1/5'));
 
-  const rosa = planContent(await proposePlan(app, app.store.getCase('FW-001')!, 'U_MGR_DANA'));
+  const rosa = planContent(latestPlan(app, 'FW-001')!);
   assert.equal(rosa.track.id, 'experienced');
   assert.equal(rosa.modules.find((m) => m.id === 'SCAN-120')!.hours, 0.5);
+  assert.deepEqual(rosa.tailoring, [], 'confident answers add nothing');
   await command(app, 'U_MGR_DANA', 'approve FW-001 v1');
-  assert.match(app.mocks.slack!.posts('U_ROSA').at(-1)!.text, /approved your two-week plan[\s\S]*06:00/);
+  assert.match(app.mocks.slack!.posts('U_ROSA').at(-1)!.text, /approved your two-week training plan[\s\S]*Tailored for you[\s\S]*30-minute refresher[\s\S]*06:00/);
 });
