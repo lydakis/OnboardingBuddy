@@ -56,6 +56,16 @@ errand --on gb10 -L 4600 -- sh -c 'npm ci && set -a && . ~/.config/onboarding-bu
 
 The OpenClaw gateway's own OpenAI-compatible endpoint is disabled on `gb10-agent` (HTTP 404); we do not need it.
 
+### Optional: readiness estimate on the plan card
+
+When the questionnaire is confirmed, the agent drafts the tailored plan and asks the local readiness model in `ml/` for an advisory estimate (beginner / some experience / expert). The manager sees it on the plan card. It never changes modules or stop limits, and the worker never sees it. To turn it on, train the model on the GB10 once:
+
+```sh
+cd ml && uv sync --python 3.12 && uv run python synthetic.py --rows 1000 --seed 42 && uv run python train.py --seed 42
+```
+
+The app finds `ml/.venv` and `ml/artifacts/catboost.cbm` on its own. Use `OB_READINESS_CMD` to point it at another command, which gets the snapshot path appended and must print `predict.py`'s JSON. Set `OB_READINESS=off` to disable it. Without a trained model, plans are drafted the same way, just with no estimate.
+
 ## 4. Before the first real send
 
 Run `npm run live:check` on the GB10. It calls `auth.test`, checks scopes, lists the AgentMail inbox and pings the model, and sends nothing. Then tell Claude which recipient addresses are approved for the first real welcome email and invite.

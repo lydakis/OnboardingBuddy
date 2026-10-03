@@ -129,7 +129,8 @@
       "hours": 1.5,
       "appliesTo": "foundations",
       "day": {
-        "foundations": 2
+        "foundations": 2,
+        "experienced": 2
       },
       "evidence": "quiz score of 80% or higher",
       "rule": "R-MOD-7: Required on the Foundations track."
@@ -140,10 +141,47 @@
       "hours": 1,
       "appliesTo": "experienced",
       "day": {
-        "experienced": 2
+        "experienced": 2,
+        "foundations": 3
       },
       "evidence": "signed acknowledgement",
       "rule": "R-MOD-8: Experienced couriers learn Fleetwing's dispatch app instead of general route training."
+    },
+    {
+      "id": "APP-115",
+      "title": "Fleetwing courier app basics",
+      "hours": 1,
+      "appliesTo": "tailored",
+      "day": {
+        "experienced": 1,
+        "foundations": 2
+      },
+      "evidence": "supervisor sign-off",
+      "rule": "R-MOD-10: Added for anyone who hasn't used a delivery or route app before."
+    },
+    {
+      "id": "SCAN-125",
+      "title": "Scanner practice lab with a mentor",
+      "hours": 1,
+      "appliesTo": "tailored",
+      "day": {
+        "experienced": 2,
+        "foundations": 3
+      },
+      "evidence": "mentor sign-off",
+      "rule": "R-MOD-11: Added when a worker rates their scanning confidence 1 or 2."
+    },
+    {
+      "id": "AREA-150",
+      "title": "Depot area orientation: zones, docks and tricky addresses",
+      "hours": 1,
+      "appliesTo": "tailored",
+      "day": {
+        "experienced": 2,
+        "foundations": 3
+      },
+      "evidence": "mentor sign-off",
+      "rule": "R-MOD-12: Added when a worker is new to the depot's area or rates navigation 1 or 2."
     },
     {
       "id": "RIDE-300",
@@ -167,5 +205,63 @@
     "day": "09:00",
     "late": "13:00"
   },
-  "scheduleRule": "R-SCHED-1: Ride-along and on-route days start at the worker's preferred shift time."
+  "scheduleRule": "R-SCHED-1: Ride-along and on-route days start at the worker's preferred shift time.",
+  "tailoring": [
+    {
+      "id": "T-AREA",
+      "when": {
+        "field": "area_familiarity",
+        "in": [
+          "not_yet"
+        ]
+      },
+      "add": "AREA-150",
+      "reason": "New to the depot area.",
+      "workerNote": "An area orientation with your mentor, since you're new to the area."
+    },
+    {
+      "id": "T-NAV",
+      "when": {
+        "rating": "navigation",
+        "atMost": 2
+      },
+      "add": "AREA-150",
+      "reason": "Rated navigation {value}/5.",
+      "workerNote": "An area orientation with your mentor, to make navigation easier from day one."
+    },
+    {
+      "id": "T-APP",
+      "when": {
+        "field": "delivery_app",
+        "in": [
+          "no"
+        ]
+      },
+      "add": "APP-115",
+      "reason": "Hasn't used a delivery app.",
+      "workerNote": "A one-hour walkthrough of the courier app, since it's new to you."
+    },
+    {
+      "id": "T-SCAN",
+      "when": {
+        "rating": "scanning",
+        "atMost": 2
+      },
+      "add": "SCAN-125",
+      "fullLength": "SCAN-120",
+      "reason": "Rated scanning {value}/5.",
+      "workerNote": "An extra scanner practice session with a mentor, so scanning feels easy before you're on route."
+    },
+    {
+      "id": "T-HANDOFF",
+      "when": {
+        "rating": "handoff",
+        "atMost": 2
+      },
+      "add": "CUST-140",
+      "reason": "Rated customer handoff {value}/5.",
+      "workerNote": "The customer handoff and signatures session, to build confidence at the door."
+    }
+  ],
+  "tailoringRule": "R-TAILOR-1: Tailoring only adds or lengthens training. It never removes a required module or changes the stop ramp."
 }

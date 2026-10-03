@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { command, makeApp } from './helpers.ts';
 import { runPhase1, runPhase2 } from '../src/demo/scenario.ts';
-import { PlanNotApprovedError, approvePlan, latestPlan, planContent, proposePlan, sendApprovedPlan } from '../src/engine/plan.ts';
+import { PlanNotApprovedError, approvePlan, latestPlan, planContent, planSummary, proposePlan, sendApprovedPlan } from '../src/engine/plan.ts';
 import { validateExtraction } from '../src/engine/extract.ts';
-import { loadPolicy } from '../src/engine/policy.ts';
+import { buildPlan, loadPolicy } from '../src/engine/policy.ts';
 import { MockLlm } from '../src/adapters/llm/mock.ts';
 
 const quiet = () => {};
@@ -55,27 +55,70 @@ test('conflicting experience blocks approval until a manager resolves it with a 
 test('unapproved, superseded or altered plans can never be sent as approved', async () => {
   const app = await intakeDone();
   const rosa = () => app.store.getCase('FW-001')!;
-  await proposePlan(app, rosa(), 'U_MGR_DANA');
-  await assert.rejects(sendApprovedPlan(app, rosa(), 1), PlanNotApprovedError);
-  await assert.rejects(approvePlan(app, rosa(), 1, 'U_DISPATCH_LEE'), /Only an authorized manager/);
+  await proposePlan(app, rosa(), 'U_MGR_DANA'); // v2 (v1 was drafted when the questionnaire was confirmed)
+  await assert.rejects(sendApprovedPlan(app, rosa(), 2), PlanNotApprovedError);
+  await assert.rejects(approvePlan(app, rosa(), 2, 'U_DISPATCH_LEE'), /Only an authorized manager/);
 
   await command(app, 'U_MGR_DANA', 'revise FW-001 add=DRV-220 "insurance"');
-  await assert.rejects(approvePlan(app, rosa(), 1, 'U_MGR_DANA'), /not the latest/);
+  await assert.rejects(approvePlan(app, rosa(), 2, 'U_MGR_DANA'), /not the latest/);
 
-  await approvePlan(app, rosa(), 2, 'U_MGR_DANA');
-  app.store.db.prepare(`UPDATE plans SET content_json = replace(content_json, 'SAFE-101', 'SKIP-000') WHERE case_id = 'FW-001' AND version = 2`).run();
-  await assert.rejects(sendApprovedPlan(app, rosa(), 2), /changed after approval/);
+  await approvePlan(app, rosa(), 3, 'U_MGR_DANA');
+  app.store.db.prepare(`UPDATE plans SET content_json = replace(content_json, 'SAFE-101', 'SKIP-000') WHERE case_id = 'FW-001' AND version = 3`).run();
+  await assert.rejects(sendApprovedPlan(app, rosa(), 3), /changed after approval/);
+  assert.equal(app.mocks.slack!.posts('U_ROSA').filter((p) => p.text.includes('approved your two-week')).length, 0);
   assert.equal(app.mocks.email!.sent('rosa.delgado@example.net').filter((m) => m.subject.includes('approved')).length, 0);
 });
 
-test('approval emails the exact approved plan once', async () => {
+test('approval sends the exact previewed plan to the worker in Slack, once', async () => {
   const app = await intakeDone();
-  await command(app, 'U_MGR_DANA', 'plan FW-001');
+  const preview = await command(app, 'U_MGR_DANA', 'plan-preview FW-001');
+  const reply = await command(app, 'U_MGR_DANA', 'approve FW-001 v1');
   await command(app, 'U_MGR_DANA', 'approve FW-001 v1');
-  await command(app, 'U_MGR_DANA', 'approve FW-001 v1');
-  const sent = app.mocks.email!.sent('rosa.delgado@example.net').filter((m) => m.subject.includes('approved'));
-  assert.equal(sent.length, 1);
+  const dms = app.mocks.slack!.posts('U_ROSA').filter((p) => p.text.includes('approved your two-week'));
+  assert.equal(dms.length, 1);
+  assert.ok(preview.text.endsWith(dms[0]!.text), 'the manager previews exactly what is sent');
+  assert.match(reply.text, /sent it to <@U_ROSA> in Slack/);
+  assert.equal(app.mocks.email!.sent('rosa.delgado@example.net').filter((m) => m.subject.includes('approved')).length, 0);
   assert.equal(app.store.getCase('FW-001')!.status, 'plan_sent');
+});
+
+test('tailoring only adds training from the worker\'s answers, with their answer as evidence', () => {
+  const policy = loadPolicy();
+  const base = { facts: [], extractionErrors: [], extractionFailed: false, licenseAnswer: 'standard', licenseExcerpt: null, injectionExcerpt: null, overrides: { add: [], remove: [], resolved: {} } };
+  const plain = buildPlan(policy, base);
+  const tailored = buildPlan(policy, {
+    ...base,
+    facts: [{ name: 'equipment', value: 'handheld scanner', source: 'cv', excerpt: 'used a handheld scanner', confidence: 'high' }],
+    answers: [
+      { field: 'area_familiarity', value: 'not_yet', excerpt: 'Not yet' },
+      { field: 'delivery_app', value: 'no', excerpt: 'No' },
+      { field: 'confidence', value: { navigation: 2, scanning: 2, handoff: 1 }, excerpt: '2 2 1' },
+    ],
+  });
+  for (const id of ['AREA-150', 'APP-115', 'SCAN-125', 'CUST-140']) assert.ok(tailored.modules.some((m) => m.id === id), id);
+  for (const m of plain.modules) assert.ok(tailored.modules.some((t) => t.id === m.id), `${m.id} is never removed`);
+  assert.equal(tailored.modules.find((m) => m.id === 'SCAN-120')!.hours, 2, 'low scanning confidence keeps the full scanner module');
+  assert.deepEqual(tailored.schedule.map((s) => s.targetStops), plain.schedule.map((s) => s.targetStops), 'tailoring never changes the ramp');
+  assert.equal(tailored.tailoring!.filter((t) => t.module === 'AREA-150').length, 1, 'one note per added module');
+  assert.ok(tailored.tailoring!.every((t) => t.evidence[0]!.source === 'questionnaire'));
+});
+
+test('the readiness estimate is advisory: shown to the manager, never blocks or reaches the worker', async () => {
+  const prev = process.env.OB_READINESS_CMD;
+  process.env.OB_READINESS_CMD = `echo '{"label": "beginner", "probabilities": {"beginner": 0.8, "okay": 0.15, "expert": 0.05}}'`;
+  try {
+    const app = await intakeDone();
+    const rosa = latestPlan(app, 'FW-001')!;
+    assert.deepEqual(planContent(rosa).readiness, { label: 'beginner', confidence: 0.8 });
+    assert.equal(rosa.status, 'proposed');
+    assert.ok(planContent(rosa).reviewItems.some((r) => r.id === 'readiness-mismatch' && !r.blocking));
+    assert.match(planSummary(app.store.getCase('FW-001')!, rosa).text, /Readiness estimate:\* Beginner \(80%\)/);
+    await command(app, 'U_MGR_DANA', 'approve FW-001 v1');
+    assert.doesNotMatch(app.mocks.slack!.posts('U_ROSA').at(-1)!.text, /eadiness|Beginner/);
+  } finally {
+    if (prev === undefined) delete process.env.OB_READINESS_CMD;
+    else process.env.OB_READINESS_CMD = prev;
+  }
 });
 
 test('model output is validated: invented excerpts, bad values and broken JSON are rejected', () => {

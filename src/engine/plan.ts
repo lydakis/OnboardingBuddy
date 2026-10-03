@@ -8,6 +8,7 @@ import type { PlanContent, PlanInputs, TrackId } from './policy.ts';
 import { newId, now } from '../db/store.ts';
 import { answeredValue, questionnaireFacts } from './features.ts';
 import { items } from './slack-questionnaire.ts';
+import { predictReadiness } from './readiness.ts';
 import type { CaseRow, SlackButton } from '../types.ts';
 
 type Overrides = PlanInputs['overrides'];
@@ -84,6 +85,10 @@ export async function proposePlan(ctx: EngineContext, c: CaseRow, actor: string,
   const licenseFromAnswer = answered.find((f) => f.name === 'license_class');
   const previous = latestPlan(ctx, c.id);
   const ov: Overrides = overrides ?? (previous ? planContent(previous).overrideInput : { add: [], remove: [], resolved: {} });
+  const answers = items(ctx, c.id)
+    .filter((i) => i.status === 'answered' && i.answer_value_json)
+    .map((i) => ({ field: i.field, value: JSON.parse(i.answer_value_json!) as unknown, excerpt: i.answer_raw ?? i.excerpt ?? '' }));
+  const readiness = await predictReadiness(ctx, c.id);
   const content = buildPlan(loadPolicy(), {
     facts: [...cvFacts, ...answered],
     extractionErrors: extraction.errors,
@@ -92,6 +97,8 @@ export async function proposePlan(ctx: EngineContext, c: CaseRow, actor: string,
     licenseExcerpt: licenseItem?.answer_raw ?? null,
     injectionExcerpt: detectInstructionText(sources.cv),
     preferredShift: (answeredValue(ctx, c.id, 'preferred_shift') as string | undefined) ?? null,
+    answers,
+    readiness,
     overrides: ov,
   });
   const stored: StoredPlan = { ...content, overrideInput: ov };
@@ -111,25 +118,62 @@ export async function proposePlan(ctx: EngineContext, c: CaseRow, actor: string,
   return row;
 }
 
+const LEVEL: Record<string, string> = { beginner: 'Beginner', okay: 'Some experience', expert: 'Expert' };
+const hrs = (h: number) => (h < 1 ? `${h * 60} min` : `${h}h`);
+
 export function planSummary(c: CaseRow, row: PlanRow): { text: string; buttons: SlackButton[] } {
   const p = planContent(row);
   const blocking = unresolvedBlocking(p);
+  const tailoring = p.tailoring ?? [];
   const lines = [
-    `📋 *Training plan v${row.version}* for *${c.worker_name}* (${c.id}) — ${row.status === 'needs_review' ? '⚠️ needs review' : row.status}`,
+    `📋 *Training plan v${row.version}* for *${c.worker_name}* (${c.id}) — ${row.status === 'needs_review' ? '⚠️ needs review' : row.status === 'proposed' ? 'ready for your approval' : row.status}`,
     `*Track:* ${p.track.label}. ${p.track.reason}`,
     ...p.track.evidence.slice(0, 3).map((e) => `   ↳ ${e.source}: "${e.excerpt}"`),
-    `*Modules:* ${p.modules.map((m) => `${m.id} (${m.hours}h, day ${m.days.join('-')})`).join(', ')}`,
-    `*Ramp (policy ${p.policyId}):* ${p.schedule.map((s) => `D${s.day} ${s.targetStops}`).join(' · ')} stops/day`,
-    ...(p.rideAlongStart ? [`*Ride-along starts* ${p.rideAlongStart.time} (${p.rideAlongStart.shift} shift) · ${p.rideAlongStart.rule.split(':')[0]}`] : []),
   ];
+  if (p.readiness) lines.push(`*Readiness estimate:* ${LEVEL[p.readiness.label]} (${Math.round(p.readiness.confidence * 100)}%) · advisory, from work history and answers only`);
+  if (tailoring.length) lines.push('*Tailored for them:*', ...tailoring.map((t) => `   • ${t.module ? `${t.module}: ` : ''}${t.reason}${t.evidence[0] && !/^\w+: \d\/5$/.test(t.evidence[0].excerpt) ? ` ↳ "${t.evidence[0].excerpt}"` : ''}`));
+  lines.push('*Day by day:*');
+  for (const d of p.schedule) {
+    const mods = d.modules.map((id) => p.modules.find((m) => m.id === id)!).map((m) => `${m.title} (${m.id}, ${hrs(m.hours)})`);
+    if (!mods.length && !d.targetStops) continue;
+    lines.push(`   D${d.day}: ${mods.join('; ') || 'On route'}${d.targetStops ? ` · up to ${d.targetStops} stops` : ''}`);
+  }
+  lines.push(`   _Stop limits follow the ${p.policyId} ramp._`);
+  if (p.rideAlongStart) lines.push(`*Ride-along starts* ${p.rideAlongStart.time} (${p.rideAlongStart.shift} shift) · ${p.rideAlongStart.rule.split(':')[0]}`);
   if (p.reviewItems.length) lines.push('*Review:*', ...p.reviewItems.map((r) => `   ${r.resolution ? '✅' : r.blocking ? '⛔' : 'ℹ️'} ${r.text}${r.resolution ? ` — resolved: ${r.resolution}` : ''}`));
   if (p.missingInfo.length) lines.push('*Missing info:*', ...p.missingInfo.map((m) => `   • ${m}`));
   if (p.overrides.length) lines.push('*Manager changes:*', ...p.overrides.map((m) => `   • ${m}`));
-  const buttons: SlackButton[] = [{ text: 'Evidence', command: `evidence ${c.id}` }];
-  if (blocking.length === 0 && (row.status === 'proposed')) buttons.unshift({ text: `Approve v${row.version}`, command: `approve ${c.id} v${row.version}`, style: 'primary' });
+  const buttons: SlackButton[] = [{ text: `Preview what ${c.worker_name.split(' ')[0]} gets`, command: `plan-preview ${c.id} v${row.version}` }, { text: 'Evidence', command: `evidence ${c.id}` }];
+  if (blocking.length === 0 && (row.status === 'proposed')) buttons.unshift({ text: `Approve and send v${row.version}`, command: `approve ${c.id} v${row.version}`, style: 'primary' });
   else if (blocking.length > 0) lines.push(`To continue: \`/onboard revise ${c.id} resolve=${blocking[0]!.id} "what you checked"\``);
   buttons.push({ text: 'Request revision', command: `revise ${c.id}` });
   return { text: lines.join('\n'), buttons };
+}
+
+/** The exact Slack message the worker receives once this version is approved. */
+export function workerPlanMessage(ctx: EngineContext, c: CaseRow, row: PlanRow): string {
+  const p = planContent(row);
+  const name = ctx.store.checklist(c.id).find((i) => i.key === 'preferred_name')?.value ?? c.worker_name.split(' ')[0];
+  const why: string[] = [];
+  if (p.track.id === 'experienced') why.push('Your parcel route experience puts you on the Experienced Courier track: one ride-along day, then a faster ramp.');
+  else why.push("You're starting on Courier Foundations: three ride-along days with a mentor before your first stops of your own.");
+  const scan = p.modules.find((m) => m.id === 'SCAN-120');
+  if (scan && scan.hours < 1) why.push("Scanner training is a 30-minute refresher, since you've used a handheld scanner before.");
+  for (const t of p.tailoring ?? []) if (!why.includes(t.workerNote)) why.push(t.workerNote);
+  const days = p.schedule
+    .filter((s) => s.modules.length || s.targetStops)
+    .map((s) => `• *Day ${s.day}:* ${s.modules.map((id) => p.modules.find((m) => m.id === id)!.title).join('; ') || 'On route'}${s.targetStops ? ` (up to ${s.targetStops} stops)` : ''}`);
+  return [
+    `🎉 Hi ${name}, your manager approved your two-week training plan: *${p.track.label}*.`,
+    '',
+    '*Tailored for you*',
+    ...why.map((w) => `• ${w}`),
+    '',
+    p.rideAlongStart ? `*Your days start at ${p.rideAlongStart.time}* (${p.rideAlongStart.shift} shift).` : '',
+    ...days,
+    '',
+    'Stop numbers are the standard ramp for every new courier, not a judgement on you. Ask me here anytime.',
+  ].filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i > 0)).join('\n');
 }
 
 export async function approvePlan(ctx: EngineContext, c: CaseRow, version: number, managerId: string): Promise<PlanRow> {
@@ -155,7 +199,7 @@ export async function approvePlan(ctx: EngineContext, c: CaseRow, version: numbe
 }
 
 /** The only way a plan reaches the worker. Refuses anything without a matching manager approval. */
-export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: number): Promise<void> {
+export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: number): Promise<'slack' | 'email'> {
   const row = getPlan(ctx, c.id, version);
   if (!row) throw new PlanNotApprovedError(`no plan v${version}`);
   const approval = ctx.store.db
@@ -165,6 +209,12 @@ export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: 
   if (!isManager(ctx, approval.manager_slack_id)) throw new PlanNotApprovedError('approval was not made by an authorized manager');
   if (approval.subject_hash !== row.content_hash || hashPlan(planContent(row)) !== row.content_hash) throw new PlanNotApprovedError('plan changed after approval');
 
+  // Workers get the plan in their Slack DM once they've joined; email is the fallback before that.
+  if (c.slack_user_id) {
+    const r = await postSlack(ctx, { actionKey: `slack:plan-dm:${c.id}:v${version}`, caseId: c.id, kind: 'plan', channel: c.slack_user_id, text: workerPlanMessage(ctx, c, row) });
+    if (r.state === 'sent') markSent(ctx, c, row);
+    return 'slack';
+  }
   const p = planContent(row);
   const name = ctx.store.checklist(c.id).find((i) => i.key === 'preferred_name')?.value ?? c.worker_name;
   const text = [
@@ -183,19 +233,14 @@ export async function sendApprovedPlan(ctx: EngineContext, c: CaseRow, version: 
     '— Onboarding assistant',
   ].join('\n');
   const r = await sendEmail(ctx, { actionKey: `email:plan:${c.id}:v${version}`, caseId: c.id, kind: 'plan', to: c.worker_email, subject: 'Your approved two-week onboarding plan', text });
-  if (c.slack_user_id) {
-    const days = p.schedule
-      .filter((s) => s.modules.length || s.targetStops)
-      .map((s) => `• Day ${s.day}: ${s.modules.map((id) => p.modules.find((m) => m.id === id)!.title).join('; ') || 'On route'}${s.targetStops ? ` (up to ${s.targetStops} stops)` : ''}`);
-    await postSlack(ctx, {
-      actionKey: `slack:plan-dm:${c.id}:v${version}`, caseId: c.id, kind: 'plan', channel: c.slack_user_id,
-      text: [`🎉 Your manager approved your two-week plan: *${p.track.label}*.`, p.rideAlongStart ? `Ride-along and route days start at *${p.rideAlongStart.time}* (${p.rideAlongStart.shift} shift).` : '', ...days, 'Stop numbers are the standard ramp for new couriers, not a judgement on you. Ask me here anytime.'].filter(Boolean).join('\n'),
-    });
-  }
-  if (r.state === 'sent') {
-    ctx.store.db.prepare(`UPDATE plans SET status = 'sent' WHERE id = ?`).run(row.id);
-    ctx.store.setStatus(c.id, 'plan_sent');
-  }
+  if (r.state === 'sent') markSent(ctx, c, row);
+  return 'email';
+}
+
+function markSent(ctx: EngineContext, c: CaseRow, row: PlanRow): void {
+  ctx.store.db.prepare(`UPDATE plans SET status = 'sent' WHERE id = ?`).run(row.id);
+  ctx.store.setStatus(c.id, 'plan_sent');
+  ctx.store.audit(c.id, 'agent', 'plan_sent', { version: row.version });
 }
 
 function parseOverrides(args: string[], base: Overrides): { overrides: Overrides; note: string } {
@@ -242,8 +287,21 @@ registerCommand('approve', 'approve <case> v<version>', async (ctx, args, event)
   const version = Number((args[1] ?? '').replace(/^v/i, ''));
   if (!Number.isInteger(version) || version < 1) throw new UserError('Usage: approve <case> v<version>');
   await approvePlan(ctx, c, version, event.userId);
-  await sendApprovedPlan(ctx, ctx.store.getCase(c.id)!, version);
+  const via = await sendApprovedPlan(ctx, ctx.store.getCase(c.id)!, version);
+  if (via === 'slack') {
+    return { text: `✅ Approved plan v${version} for ${c.worker_name} and sent it to <@${c.slack_user_id}> in Slack.`, buttons: [{ text: 'Write day-1 quiz', command: `quiz ${c.id}`, style: 'primary' }, { text: 'Status', command: `status ${c.id}` }] };
+  }
   return { text: `✅ Approved plan v${version} for ${c.worker_name}; emailed it to ${c.worker_email}.`, buttons: [{ text: 'Request Slack invite', command: `invite ${c.id}`, style: 'primary' }] };
+});
+
+registerCommand('plan-preview', 'plan-preview <case> [version]', async (ctx, args) => {
+  const c = findCase(ctx, args[0]);
+  const row = args[1] ? getPlan(ctx, c.id, Number(args[1].replace(/^v/i, ''))) : latestPlan(ctx, c.id);
+  if (!row) throw new UserError(`${c.id} has no plan yet.`);
+  const buttons: SlackButton[] = row.status === 'proposed' && row.version === latestPlan(ctx, c.id)!.version
+    ? [{ text: `Approve and send v${row.version}`, command: `approve ${c.id} v${row.version}`, style: 'primary' }, { text: 'Request revision', command: `revise ${c.id}` }]
+    : [];
+  return { text: `👀 Here's exactly what ${c.worker_name} will get in Slack when you approve v${row.version}:\n\n${workerPlanMessage(ctx, c, row)}`, buttons };
 });
 
 registerCommand('revise', 'revise <case> [track=..] [add=MOD] [remove=MOD] [resolve=<review id>] "note"', async (ctx, args, event) => {

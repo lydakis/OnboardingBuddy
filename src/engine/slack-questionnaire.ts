@@ -312,11 +312,26 @@ async function confirmQuestionnaire(ctx: EngineContext, c: CaseRow): Promise<str
   writeFeatureSnapshot(ctx, c.id, 'questionnaire_complete');
   ctx.store.audit(c.id, 'worker', 'questionnaire_confirmed');
   await postSlack(ctx, { actionKey: `slack:q-done:${c.id}`, caseId: c.id, kind: 'question', channel: c.slack_user_id!, text: "Thanks! I'll put your training plan together with your manager and send it here." });
-  await postSlack(ctx, {
-    actionKey: `slack:questionnaire-complete:${c.id}`, caseId: c.id, kind: 'questionnaire_complete', channel: c.manager_slack_id,
-    text: `✅ Questionnaire complete for *${c.worker_name}* (${c.id}).\n${items(ctx, c.id).map((i) => `• ${labelFor(i.field)}: ${summaryOf(i)}`).join('\n')}`,
-    buttons: [{ text: 'Propose training plan', command: `plan ${c.id}`, style: 'primary' }, { text: 'Status', command: `status ${c.id}` }],
-  });
+  // Draft the tailored plan straight away so the manager gets it ready to approve.
+  const { proposePlan } = await import('./plan.ts');
+  let drafted = false;
+  try {
+    await postSlack(ctx, {
+      actionKey: `slack:questionnaire-complete:${c.id}`, caseId: c.id, kind: 'questionnaire_complete', channel: c.manager_slack_id,
+      text: `✅ Questionnaire complete for *${c.worker_name}* (${c.id}). Their tailored training plan is below.\n${items(ctx, c.id).map((i) => `• ${labelFor(i.field)}: ${summaryOf(i)}`).join('\n')}`,
+    });
+    await proposePlan(ctx, ctx.store.getCase(c.id)!, 'agent');
+    drafted = true;
+  } catch (err) {
+    ctx.store.audit(c.id, 'agent', 'plan_autodraft_failed', { error: err instanceof Error ? err.message : String(err) });
+  }
+  if (!drafted) {
+    await postSlack(ctx, {
+      actionKey: `slack:plan-autodraft-failed:${c.id}`, caseId: c.id, kind: 'questionnaire_complete', channel: c.manager_slack_id,
+      text: `I couldn't draft ${c.worker_name}'s training plan automatically. Tap below to try again.`,
+      buttons: [{ text: 'Propose training plan', command: `plan ${c.id}`, style: 'primary' }, { text: 'Status', command: `status ${c.id}` }],
+    });
+  }
   return 'Thanks, all set!';
 }
 
