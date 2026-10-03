@@ -66,6 +66,17 @@ else {
 add('Live recipient allowlist', config.liveRecipientAllowlist.length ? 'ready' : config.email.mode === 'mock' ? 'mocked' : 'blocked', config.liveRecipientAllowlist.length ? `${config.liveRecipientAllowlist.length} address(es)` : 'OB_LIVE_RECIPIENT_ALLOWLIST empty');
 
 // Model
+if (config.classifier.mode === 'off') add('Readiness classifier', 'mocked', 'OB_CLASSIFIER_MODE=off');
+else {
+  const { LocalClassifier } = await import('../src/adapters/classifier.ts');
+  try {
+    const identity = await new LocalClassifier(config.classifier.baseUrl, config.classifier.timeoutMs).identity();
+    add('Readiness classifier', 'ready', `GB10 loopback; ${config.classifier.mode}; model ${identity.model_version.slice(0, 12)}; synthetic-trained ${identity.synthetic_only}`);
+  } catch {
+    add('Readiness classifier', 'blocked', 'Local classifier unavailable or returned an invalid identity');
+  }
+}
+
 if (config.llm.mode === 'mock') add('Model', 'mocked', 'OB_LLM_MODE=mock');
 else {
   const { createApp } = await import('../src/app.ts');

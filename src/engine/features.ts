@@ -6,12 +6,14 @@ import { loadPolicy } from './policy.ts';
 import { now } from '../db/store.ts';
 
 /** Deterministic facts from answered Slack questions; the worker's reply is the excerpt. */
-export function questionnaireFacts(ctx: EngineContext, caseId: string, cvFacts: Fact[]): Fact[] {
+export function questionnaireFacts(ctx: EngineContext, caseId: string, cvFacts: Fact[], frozen?: FeatureSnapshot['data']): Fact[] {
   const out: Fact[] = [];
   const fact = (name: Fact['name'], value: Fact['value'], excerpt: string) => out.push({ name, value, source: 'questionnaire', excerpt, confidence: 'high' });
-  for (const i of items(ctx, caseId).filter((x) => x.status === 'answered' && x.answer_value_json)) {
-    const v = JSON.parse(i.answer_value_json!);
-    const excerpt = i.answer_raw ?? i.excerpt ?? '';
+  const answers = frozen ? frozen.asked.filter((i) => i.value !== null).map((i) => ({ field: i.field, value: i.value, excerpt: i.raw ?? i.excerpt ?? '' })) :
+    items(ctx, caseId).filter((i) => i.status === 'answered' && i.answer_value_json).map((i) => ({ field: i.field, value: JSON.parse(i.answer_value_json!), excerpt: i.answer_raw ?? i.excerpt ?? '' }));
+  for (const i of answers) {
+    const v = i.value;
+    const excerpt = i.excerpt;
     if (i.field === 'delivery') {
       if (v.confirmed) {
         const cvYears = cvFacts.filter((f) => f.source === 'cv' && f.name === 'parcel_delivery_years').reduce((a, f) => a + Number(f.value), 0);
@@ -35,13 +37,28 @@ export function answeredValue(ctx: EngineContext, caseId: string, field: string)
   return i?.answer_value_json ? JSON.parse(i.answer_value_json) : undefined;
 }
 
+export interface FeatureSnapshot {
+  case_id: string;
+  version: number;
+  json: string;
+  data: {
+    asked: { field: string; raw: string | null; value: any; excerpt: string | null; asked: boolean }[];
+    cv: { field: Fact['name']; value: Fact['value']; excerpt: string; asked: boolean; confidence?: Fact['confidence'] }[];
+  };
+}
+
+export function latestFeatureSnapshot(ctx: EngineContext, caseId: string): FeatureSnapshot | undefined {
+  const row = ctx.store.db.prepare("SELECT case_id, version, json FROM feature_snapshots WHERE case_id = ? AND reason = 'questionnaire_complete' ORDER BY version DESC LIMIT 1").get(caseId) as Omit<FeatureSnapshot, 'data'> | undefined;
+  return row ? { ...row, data: JSON.parse(row.json) } : undefined;
+}
+
 export function writeFeatureSnapshot(ctx: EngineContext, caseId: string, reason: string): void {
   const prev = ctx.store.db.prepare('SELECT MAX(version) AS v FROM feature_snapshots WHERE case_id = ?').get(caseId) as { v: number | null };
   const ext = ctx.store.db.prepare(`SELECT output_json FROM extractions WHERE case_id = ? AND status = 'accepted' ORDER BY created_at DESC LIMIT 1`).get(caseId) as { output_json: string } | undefined;
   const cvFacts = ext ? (JSON.parse(ext.output_json) as Fact[]).filter((f) => f.source === 'cv') : [];
   const json = {
     asked: items(ctx, caseId).map((i) => ({ field: i.field, raw: i.answer_raw, value: i.answer_value_json ? JSON.parse(i.answer_value_json) : null, excerpt: i.excerpt, asked: true })),
-    cv: cvFacts.map((f) => ({ field: f.name, value: f.value, excerpt: f.excerpt, asked: false })),
+    cv: cvFacts.map((f) => ({ field: f.name, value: f.value, excerpt: f.excerpt, confidence: f.confidence, asked: false })),
   };
   ctx.store.db
     .prepare('INSERT INTO feature_snapshots (case_id, version, policy_id, reason, json, created_at) VALUES (?, ?, ?, ?, ?, ?)')

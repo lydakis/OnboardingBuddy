@@ -6,7 +6,7 @@
 import type { EngineContext } from './context.ts';
 import type { Fact } from './extract.ts';
 import { detectInstructionText, setMockResponder } from './extract.ts';
-import type { Lesson, PlanContent } from './policy.ts';
+import type { Answer, Lesson, PlanContent } from './policy.ts';
 import { items, labelFor, summaryOf } from './slack-questionnaire.ts';
 import type { CaseRow, ChatMessage } from '../types.ts';
 
@@ -44,13 +44,18 @@ export interface WorkerProfile {
   answers: { question: string; answer: string }[];
 }
 
-export function workerProfile(ctx: EngineContext, c: CaseRow, plan: PlanContent): WorkerProfile {
+export function workerProfile(ctx: EngineContext, c: CaseRow, plan: PlanContent, confirmed?: Answer[]): WorkerProfile {
+  const questions = items(ctx, c.id);
+  const answers = confirmed ? confirmed.map((a) => {
+    const question = questions.find((i) => i.field === a.field);
+    return { question: labelFor(a.field), answer: question ? summaryOf({ ...question, answer_value_json: JSON.stringify(a.value) }) : a.excerpt || JSON.stringify(a.value) };
+  }) : questions.filter((i) => i.status === 'answered').map((i) => ({ question: labelFor(i.field), answer: summaryOf(i) }));
   return {
     role: 'Seasonal parcel courier at Fleetwing Express, a fictional delivery company',
     track: plan.track.label,
     area: process.env.OB_DEPOT_ZONE ?? 'Columbus East',
     facts: plan.facts.filter((f: Fact) => f.source === 'cv').map((f) => ({ fact: f.name, value: f.value, quote: f.excerpt })),
-    answers: items(ctx, c.id).filter((i) => i.status === 'answered').map((i) => ({ question: labelFor(i.field), answer: summaryOf(i) })),
+    answers,
   };
 }
 
@@ -100,14 +105,14 @@ export function validateLessons(raw: string, moduleIds: string[]): { lessons: Re
   return { lessons, errors };
 }
 
-export async function generateLessons(ctx: EngineContext, c: CaseRow, plan: PlanContent, reuse: Record<string, Lesson> = {}): Promise<Record<string, Lesson>> {
+export async function generateLessons(ctx: EngineContext, c: CaseRow, plan: PlanContent, reuse: Record<string, Lesson> = {}, confirmed?: Answer[]): Promise<Record<string, Lesson>> {
   if (process.env.OB_TAILORED_LESSONS === 'off') return {};
   const ids = plan.modules.map((m) => m.id);
   const kept = Object.fromEntries(Object.entries(reuse).filter(([id]) => ids.includes(id)));
   const missing = plan.modules.filter((m) => !kept[m.id]).map((m) => ({ id: m.id, title: m.title }));
   if (!missing.length) return kept;
   try {
-    const raw = await ctx.adapters.llm.complete(buildLessonMessages(workerProfile(ctx, c, plan), missing), { jsonSchema: LESSONS_SCHEMA, sessionKey: `onboarding-${c.id}-lessons` });
+    const raw = await ctx.adapters.llm.complete(buildLessonMessages(workerProfile(ctx, c, plan, confirmed), missing), { jsonSchema: LESSONS_SCHEMA, sessionKey: `onboarding-${c.id}-lessons` });
     const { lessons, errors } = validateLessons(raw, missing.map((m) => m.id));
     ctx.store.audit(c.id, 'agent', 'lessons_tailored', { model: ctx.adapters.llm.model, modules: Object.keys(lessons), dropped: errors.slice(0, 5) });
     return { ...kept, ...lessons };

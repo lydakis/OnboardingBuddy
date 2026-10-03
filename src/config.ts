@@ -44,6 +44,7 @@ export interface Config {
     teamId?: string;
   };
   sandbox: { mode: 'off' | 'mock' | 'nemoclaw' };
+  classifier: { mode: 'off' | 'advisory' | 'demo'; baseUrl: string; timeoutMs: number };
   readiness: {
     requireIntakeComplete: boolean;
     requirePlanSent: boolean;
@@ -104,6 +105,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sandbox: {
       mode: oneOf('OB_SANDBOX_MODE', env.OB_SANDBOX_MODE, ['off', 'mock', 'nemoclaw'] as const, env.OB_LLM_MODE === 'nemoclaw' ? 'nemoclaw' : 'mock'),
     },
+    classifier: {
+      mode: oneOf('OB_CLASSIFIER_MODE', env.OB_CLASSIFIER_MODE, ['off', 'advisory', 'demo'] as const, 'off'),
+      baseUrl: env.OB_CLASSIFIER_URL ?? 'http://127.0.0.1:4610',
+      timeoutMs: Number(env.OB_CLASSIFIER_TIMEOUT_MS ?? 5000),
+    },
     readiness: {
       requireIntakeComplete: env.OB_READY_REQUIRE_INTAKE !== 'false',
       requirePlanSent: env.OB_READY_REQUIRE_PLAN_SENT === 'true',
@@ -114,6 +120,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 }
 
 export function validateConfig(config: Config): void {
+  const classifierUrl = new URL(config.classifier.baseUrl);
+  if (classifierUrl.protocol !== 'http:' || !['127.0.0.1', '[::1]'].includes(classifierUrl.hostname) || classifierUrl.username || classifierUrl.password || classifierUrl.pathname !== '/' || classifierUrl.search || classifierUrl.hash) {
+    throw new Error('OB_CLASSIFIER_URL must be a literal HTTP loopback endpoint on the GB10');
+  }
+  if (!Number.isInteger(config.classifier.timeoutMs) || config.classifier.timeoutMs < 1 || config.classifier.timeoutMs > 30000) throw new Error('OB_CLASSIFIER_TIMEOUT_MS must be between 1 and 30000');
   if (config.llm.mode === 'openai-compatible') {
     if (!config.llm.baseUrl || !config.llm.model) {
       throw new Error('OB_LLM_BASE_URL and OB_LLM_MODEL are required when OB_LLM_MODE=openai-compatible');
@@ -155,6 +166,7 @@ export function assertLocalEndpoint(rawUrl: string): void {
 
 export function describeModes(config: Config): Record<string, string> {
   return {
+    classifier: config.classifier.mode === 'off' ? 'off' : `LOCAL CatBoost (${config.classifier.mode}, GB10 loopback)`,
     email: config.email.mode === 'mock' ? 'MOCK (deterministic in-database mailbox)' : 'LIVE AgentMail (unverified)',
     slack: config.slack.mode === 'mock' ? 'MOCK (deterministic in-database workspace)' : 'LIVE Socket Mode (unverified)',
     llm:

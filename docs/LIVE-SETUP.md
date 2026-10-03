@@ -56,15 +56,11 @@ errand --on gb10 -L 4600 -- sh -c 'npm ci && set -a && . ~/.config/onboarding-bu
 
 The OpenClaw gateway's own OpenAI-compatible endpoint is disabled on `gb10-agent` (HTTP 404); we do not need it.
 
-### Optional: readiness estimate on the plan card
+### Readiness classifier on the plan card
 
-When the questionnaire is confirmed, the agent drafts the tailored plan and asks the local readiness model in `ml/` for an advisory estimate (beginner / some experience / expert). The manager sees it on the plan card. It never changes modules or stop limits, and the worker never sees it. To turn it on, train the model on the GB10 once:
+Questionnaire confirmation freezes the inputs and automatically drafts the plan with the local classifier and tailored lessons. The manager previews and approves the complete plan before it reaches the worker. See [the GB10 classifier setup](READINESS.md).
 
-```sh
-cd ml && uv sync --python 3.12 && uv run python synthetic.py --rows 1000 --seed 42 && uv run python train.py --seed 42
-```
-
-The app finds `ml/.venv` and `ml/artifacts/catboost.cbm` on its own. Use `OB_READINESS_CMD` to point it at another command, which gets the snapshot path appended and must print `predict.py`'s JSON. Set `OB_READINESS=off` to disable it. Without a trained model, plans are drafted the same way, just with no estimate.
+`OB_CLASSIFIER_MODE=advisory` records the estimate while preserving the existing CV/license track selection. `demo` maps beginner/okay/expert to Foundations/Intermediate/Experienced policy tiers, with review for ambiguous or missing inputs. `off` disables inference. These settings replace the earlier `OB_READINESS_CMD` and `OB_READINESS` subprocess configuration. The classifier runs as a persistent GB10 service; it does not need a model or Python environment inside each app workspace.
 
 ### Interactive training link
 
@@ -73,3 +69,7 @@ The approved-plan DM links to `https://onboarding-buddy-chi.vercel.app/training/
 ## 4. Before the first real send
 
 Run `npm run live:check` on the GB10. It calls `auth.test`, checks scopes, lists the AgentMail inbox and pings the model, and sends nothing. Then tell Claude which recipient addresses are approved for the first real welcome email and invite.
+
+## 5. Readiness classifier
+
+See [GB10 readiness installation and planning](READINESS.md). The classifier runs as a persistent GB10 user service; the application loads its non-secret settings from `~/.config/onboarding-buddy/readiness.env` with `sh scripts/start-gb10.sh`. Preserve the current connector profile and persistent database when restarting. The questionnaire-first flow requires Slack joining and confirmed answers before proposal, so keep `OB_READY_REQUIRE_PLAN_SENT=false`.

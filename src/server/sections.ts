@@ -1,6 +1,7 @@
 import type { App } from '../app.ts';
 import { esc, extraSections } from './status.ts';
 import { latestPlan, planContent } from '../engine/plan.ts';
+import { readinessSummary } from '../engine/readiness.ts';
 
 extraSections.push((app: App, caseId: string) => {
   const row = latestPlan(app, caseId);
@@ -9,6 +10,7 @@ extraSections.push((app: App, caseId: string) => {
   const ev = (list: { source: string; excerpt: string }[]) => list.map((e) => `<div class="muted">${esc(e.source)}: “${esc(e.excerpt)}”</div>`).join('');
   return `<div class="card"><h2>Training plan v${row.version} · <span class="${esc(row.status)}">${esc(row.status)}</span> · policy ${esc(p.policyId)}</h2>
 <p><b>${esc(p.track.label)}</b> — ${esc(p.track.reason)}</p>${ev(p.track.evidence)}
+${readinessSummary(p.readiness) ? `<p>${esc(readinessSummary(p.readiness))}</p>` : ''}
 <table><tr><th>module</th><th>hours</th><th>days</th><th>why (policy rule)</th><th>evidence required</th></tr>
 ${p.modules.map((m) => `<tr><td>${esc(m.id)} ${esc(m.title)}</td><td>${m.hours}</td><td>${esc(m.days.join(', '))}</td><td>${esc(m.reason)}${ev(m.evidence)}</td><td>${esc(m.evidenceRequired)}</td></tr>`).join('')}</table>
 <p>Ramp (policy-defined stop limits): ${p.schedule.map((s) => `D${s.day}: ${s.targetStops}`).join(' · ')}</p>

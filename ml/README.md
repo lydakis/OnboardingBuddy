@@ -25,10 +25,17 @@ uv run python -m unittest discover -p 'test_*.py'
 uv run python synthetic.py --rows 1000 --seed 42
 uv run python train.py --seed 42
 uv run python predict.py artifacts/snapshots.jsonl --model catboost
-uv run python predict.py artifacts/snapshots.jsonl --model xgboost
 ```
 
-Python 3.12 or 3.13 is supported. `uv.lock` records the dependencies. On macOS, XGBoost also needs the OpenMP runtime (`brew install libomp`). Both models train on CPU with four threads; this small dataset does not need a GPU. All generation, training and prediction happens locally. Dependency installation downloads packages.
+CatBoost is the default and the deployed classifier. For optional XGBoost comparison:
+
+```sh
+uv sync --extra xgboost
+uv run --extra xgboost python train.py --models both
+uv run --extra xgboost python predict.py artifacts/snapshots.jsonl --model xgboost
+```
+
+Python 3.12 or 3.13 is supported. `uv.lock` records the dependencies. On macOS, XGBoost also needs the OpenMP runtime (`brew install libomp`). Both models train on CPU with four threads; this small dataset does not need a GPU. The integrated application runs training and inference on the GB10. See [the planning and installation contract](../docs/READINESS.md). Dependency installation downloads packages.
 
 `artifacts/` contains:
 
@@ -40,13 +47,14 @@ Python 3.12 or 3.13 is supported. `uv.lock` records the dependencies. On macOS, 
 | split.json | Case IDs for train, validation and test partitions |
 | report.json | Baseline, per-class precision/recall/F1, confusion matrices, log loss, feature importance and dependency versions |
 | catboost.cbm / xgboost.json | Saved models, with probability agreement checked after reload |
+| *-manifest.json | Artifact/preprocessing checksums, feature order and class order |
 | *-test-predictions.csv | Held-out labels and probabilities for each model |
 
 Generated files and the virtual environment are ignored by Git. Re-running a command replaces its output files in the chosen directory. Use `--out artifacts/another-run` to keep another experiment; `train.py --data ... --out ...` can select it.
 
 ## Features and simulation
 
-The pasted schema is explicitly a brainstorm. Its referenced approved P0 spec is absent from this checkout, so this experiment uses the fields actually implemented in `src/engine/slack-questionnaire.ts` and `src/engine/features.ts`:
+The pasted schema is explicitly a brainstorm. This experiment uses the fields actually implemented in `src/engine/slack-questionnaire.ts` and `src/engine/features.ts`:
 
 - Parcel, other delivery and warehouse years from available CV/questionnaire facts.
 - License category, largest vehicle, route type, equipment, delivery app experience and area familiarity.
@@ -67,4 +75,4 @@ Implementation references: [CatBoost categorical features](https://catboost.ai/d
 
 Define a role-specific rubric with managers and mentors before collecting labels. Label initial readiness from an independent practical assessment; later ramp/module outcomes can provide validation, but they also reflect the training provided. Training track assignment alone would reproduce the existing policy rather than measure capability.
 
-Freeze each worker's features before the assessment being predicted, attach labels separately, and keep every version of a worker in the same partition. The current app writes a snapshot at questionnaire completion, which occurs after initial plan approval; an approval-time prediction will require an earlier snapshot. Evaluate on held-out real workers, preferably a later cohort, and measure per-class errors and probability calibration. Keep synthetic and real evaluation results separate. Do not use this prototype to automatically reduce training.
+Freeze each worker's features before the assessment being predicted, attach labels separately, and keep every version of a worker in the same partition. The app now requires a confirmed questionnaire snapshot before proposing a plan. Evaluate on held-out real workers, preferably a later cohort, and measure per-class errors and probability calibration. Keep synthetic and real evaluation results separate. The integrated demo uses predictions for manager-approved policy tiers; use advisory mode for real workers until validation is complete.

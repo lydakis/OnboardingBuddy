@@ -609,7 +609,7 @@ function decode(text){
   if(!days.length) return null;
   days.sort(function(a,b){return a[0]-b[0];});
   return {n:typeof o.n==='string'&&o.n.trim()?o.n.trim().slice(0,40):'there',c:String(o.c||'plan').slice(0,40),pv:parseInt(o.pv,10)||1,
-   t:o.t==='foundations'?'foundations':'experienced',tl:typeof o.tl==='string'?o.tl.slice(0,80):'',s:typeof o.s==='string'?o.s.slice(0,12):null,
+   t:['foundations','intermediate','experienced'].indexOf(o.t)>=0?o.t:'foundations',tl:typeof o.tl==='string'?o.tl.slice(0,80):'',s:typeof o.s==='string'?o.s.slice(0,12):null,
    d:days,h:(o.h&&typeof o.h==='object')?o.h:{},w:Array.isArray(o.w)?o.w.filter(function(x){return typeof x==='string';}).slice(0,6):[],l:cleanLessons(o.l)};
  }catch(e){return null;}
 }
@@ -646,7 +646,7 @@ function showHome(focusId){
  var daysDone=activeDays.filter(dayDone).length;
  var C=2*Math.PI*40;
  var nextIdx=-1; for(var i=0;i<P.d.length;i++){var r=P.d[i];if((r[1].length||r[2])&&!dayDone(r)){nextIdx=i;break;}}
- var trackName=P.tl||(P.t==='foundations'?'Foundations track':'Experienced Courier track');
+ var trackName=P.tl||({foundations:'Foundations track',intermediate:'Intermediate Courier track',experienced:'Experienced Courier track'}[P.t]);
  var h='';
  h+='<section class="hero" aria-labelledby="hi">';
  h+='<p class="eyebrow">Fleetwing Express · Courier training</p>';
@@ -659,7 +659,7 @@ function showHome(focusId){
  h+='<div><small>Modules</small><strong>'+done+' / '+mods.length+'</strong></div>';
  h+='<div><small>Days</small><strong>'+daysDone+' / '+activeDays.length+'</strong></div>';
  h+='</div><div class="ring" role="img" aria-label="'+pct+' percent of modules complete"><svg viewBox="0 0 96 96" aria-hidden="true"><circle class="bg" cx="48" cy="48" r="40"/><circle class="fg" cx="48" cy="48" r="40" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+(C*(1-pct/100)).toFixed(1)+'"/></svg><div class="pct"><b>'+pct+'%</b><span>done</span></div></div></div>';
- h+='<div class="lbl-foot">'+barcode(P.c)+'<b>'+(P.t==='foundations'?'FND':'EXP')+'</b></div>';
+ h+='<div class="lbl-foot">'+barcode(P.c)+'<b>'+({foundations:'FND',intermediate:'INT',experienced:'EXP'}[P.t])+'</b></div>';
  h+='</div>';
  if(P.w.length){
   h+='<div class="tailored"><h2>'+ico('spark')+'Tailored for you</h2><ul>';

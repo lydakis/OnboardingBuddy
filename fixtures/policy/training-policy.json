@@ -1,5 +1,5 @@
 {
-  "policyId": "FWX-ONB-2026.1",
+  "policyId": "FWX-ONB-2026.2",
   "company": "Fleetwing Express (fictional, FedEx-inspired demo)",
   "disclaimer": "Example onboarding policy written for a hackathon demo. Not a real company's policy. Daily stop targets below are policy-defined ramp limits, not predictions of a worker's productivity.",
   "standardRoute": {
@@ -13,7 +13,7 @@
     {
       "id": "experienced",
       "label": "Experienced Courier track",
-      "rule": "R-TRACK-1: At least 2 years of parcel or route delivery experience shown in the CV, plus a driver's license, qualifies for the Experienced track.",
+      "rule": "R-TRACK-1: An expert recommendation in classifier demo mode plus a license selects Experienced. Without a usable classifier, at least 2 CV parcel years plus a license qualifies.",
       "minParcelYears": 2,
       "requiresLicense": true,
       "rampPctByDay": [
@@ -47,6 +47,25 @@
         50,
         60
       ]
+    },
+    {
+      "id": "intermediate",
+      "label": "Intermediate Courier track",
+      "rule": "R-TRACK-3: An okay recommendation in classifier demo mode plus a license selects targeted refreshers, two mentor days and a moderate ramp. A manager approves every plan.",
+      "minParcelYears": 0,
+      "requiresLicense": true,
+      "rampPctByDay": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        40,
+        50,
+        60,
+        70,
+        80
+      ]
     }
   ],
   "modules": [
@@ -57,7 +76,8 @@
       "appliesTo": "all",
       "day": {
         "experienced": 1,
-        "foundations": 1
+        "foundations": 1,
+        "intermediate": 1
       },
       "evidence": "quiz score of 80% or higher",
       "rule": "R-MOD-1: Required for every new worker regardless of experience."
@@ -69,7 +89,8 @@
       "appliesTo": "all",
       "day": {
         "experienced": 1,
-        "foundations": 1
+        "foundations": 1,
+        "intermediate": 1
       },
       "evidence": "signed acknowledgement",
       "rule": "R-MOD-2: Required for every new worker."
@@ -83,7 +104,8 @@
       "appliesTo": "all",
       "day": {
         "experienced": 1,
-        "foundations": 2
+        "foundations": 2,
+        "intermediate": 1
       },
       "evidence": "supervisor sign-off",
       "rule": "R-MOD-3: Required for everyone; prior handheld scanner use shortens it to a 30-minute refresher on the Fleetwing app."
@@ -95,7 +117,8 @@
       "appliesTo": "all",
       "day": {
         "experienced": 2,
-        "foundations": 2
+        "foundations": 2,
+        "intermediate": 2
       },
       "evidence": "supervisor sign-off",
       "rule": "R-MOD-4: Required for every new worker."
@@ -107,7 +130,8 @@
       "appliesTo": "licensed",
       "day": {
         "experienced": 2,
-        "foundations": 3
+        "foundations": 3,
+        "intermediate": 3
       },
       "evidence": "supervisor sign-off",
       "rule": "R-MOD-5: Required for anyone who will drive a Fleetwing vehicle."
@@ -116,36 +140,72 @@
       "id": "DRV-220",
       "title": "Defensive driving course",
       "hours": 4,
-      "appliesTo": "foundations",
+      "appliesTo": [
+        "foundations",
+        "intermediate"
+      ],
       "day": {
-        "foundations": 3
+        "foundations": 3,
+        "intermediate": 3
       },
       "evidence": "course certificate",
-      "rule": "R-MOD-6: Required on the Foundations track before solo driving."
+      "rule": "R-MOD-6: Foundations takes the full defensive-driving course; Intermediate takes a two-hour refresher before solo driving.",
+      "hoursByTrack": {
+        "intermediate": 2
+      }
     },
     {
       "id": "CUST-140",
       "title": "Customer handoff, signatures and damaged-package reporting",
       "hours": 1.5,
-      "appliesTo": "foundations",
+      "appliesTo": [
+        "foundations",
+        "intermediate"
+      ],
       "day": {
         "foundations": 2,
-        "experienced": 2
+        "experienced": 2,
+        "intermediate": 2
       },
       "evidence": "quiz score of 80% or higher",
-      "rule": "R-MOD-7: Required on the Foundations track."
+      "rule": "R-MOD-7: Customer handoff training on Foundations; a one-hour refresher on Intermediate.",
+      "hoursByTrack": {
+        "intermediate": 1
+      }
     },
     {
       "id": "ROUTE-310",
       "title": "Route sequencing in the Fleetwing dispatch app",
       "hours": 1,
-      "appliesTo": "experienced",
+      "appliesTo": [
+        "experienced",
+        "intermediate"
+      ],
       "day": {
         "experienced": 2,
-        "foundations": 3
+        "foundations": 3,
+        "intermediate": 2
       },
       "evidence": "signed acknowledgement",
-      "rule": "R-MOD-8: Experienced couriers learn Fleetwing's dispatch app instead of general route training."
+      "rule": "R-MOD-8: Experienced and Intermediate couriers learn Fleetwing's dispatch app instead of general route training."
+    },
+    {
+      "id": "RIDE-300",
+      "title": "Mentor ride-along",
+      "hours": 8,
+      "appliesTo": "all",
+      "day": {
+        "experienced": 3,
+        "foundations": 4,
+        "intermediate": 4
+      },
+      "daysByTrack": {
+        "experienced": 1,
+        "foundations": 3,
+        "intermediate": 2
+      },
+      "evidence": "mentor sign-off",
+      "rule": "R-MOD-9: One mentor day on Experienced, two on Intermediate, three on Foundations."
     },
     {
       "id": "APP-115",
@@ -154,7 +214,8 @@
       "appliesTo": "tailored",
       "day": {
         "experienced": 1,
-        "foundations": 2
+        "foundations": 2,
+        "intermediate": 2
       },
       "evidence": "supervisor sign-off",
       "rule": "R-MOD-10: Added for anyone who hasn't used a delivery or route app before."
@@ -166,7 +227,8 @@
       "appliesTo": "tailored",
       "day": {
         "experienced": 2,
-        "foundations": 3
+        "foundations": 3,
+        "intermediate": 3
       },
       "evidence": "mentor sign-off",
       "rule": "R-MOD-11: Added when a worker rates their scanning confidence 1 or 2."
@@ -178,26 +240,11 @@
       "appliesTo": "tailored",
       "day": {
         "experienced": 2,
-        "foundations": 3
+        "foundations": 3,
+        "intermediate": 3
       },
       "evidence": "mentor sign-off",
       "rule": "R-MOD-12: Added when a worker is new to the depot's area or rates navigation 1 or 2."
-    },
-    {
-      "id": "RIDE-300",
-      "title": "Mentor ride-along",
-      "hours": 8,
-      "appliesTo": "all",
-      "day": {
-        "experienced": 3,
-        "foundations": 4
-      },
-      "daysByTrack": {
-        "experienced": 1,
-        "foundations": 3
-      },
-      "evidence": "mentor sign-off",
-      "rule": "R-MOD-9: One ride-along day on Experienced, three on Foundations."
     }
   ],
   "shifts": {
@@ -206,6 +253,10 @@
     "late": "13:00"
   },
   "scheduleRule": "R-SCHED-1: Ride-along and on-route days start at the worker's preferred shift time.",
+  "classifierReview": {
+    "minProbability": 0.6,
+    "minMargin": 0.15
+  },
   "tailoring": [
     {
       "id": "T-AREA",

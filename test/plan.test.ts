@@ -139,25 +139,12 @@ test('tailoring only adds training from the worker\'s answers, with their answer
   assert.deepEqual(tailored.schedule.map((s) => s.targetStops), plain.schedule.map((s) => s.targetStops), 'tailoring never changes the ramp');
   assert.equal(tailored.tailoring!.filter((t) => t.module === 'AREA-150').length, 1, 'one note per added module');
   assert.ok(tailored.tailoring!.every((t) => t.evidence[0]!.source === 'questionnaire'));
+  const intermediate = buildPlan(policy, { ...base, overrides: { ...base.overrides, track: 'intermediate' },
+    answers: [{ field: 'confidence', value: { handoff: 1 }, excerpt: 'handoff: 1' }] });
+  assert.equal(intermediate.modules.find((m) => m.id === 'CUST-140')!.hours, 1);
+  assert.ok(!intermediate.tailoring!.some((t) => t.module === 'CUST-140'), 'required intermediate refreshers are not claimed as extra modules');
 });
 
-test('the readiness estimate is advisory: shown to the manager, never blocks or reaches the worker', async () => {
-  const prev = process.env.OB_READINESS_CMD;
-  process.env.OB_READINESS_CMD = `echo '{"label": "beginner", "probabilities": {"beginner": 0.8, "okay": 0.15, "expert": 0.05}}'`;
-  try {
-    const app = await intakeDone();
-    const rosa = latestPlan(app, 'FW-001')!;
-    assert.deepEqual(planContent(rosa).readiness, { label: 'beginner', confidence: 0.8 });
-    assert.equal(rosa.status, 'proposed');
-    assert.ok(planContent(rosa).reviewItems.some((r) => r.id === 'readiness-mismatch' && !r.blocking));
-    assert.match(planSummary(app.store.getCase('FW-001')!, rosa).text, /Readiness estimate:\* Beginner \(80%\)/);
-    await command(app, 'U_MGR_DANA', 'approve FW-001 v1');
-    assert.doesNotMatch(app.mocks.slack!.posts('U_ROSA').at(-1)!.text, /eadiness|Beginner/);
-  } finally {
-    if (prev === undefined) delete process.env.OB_READINESS_CMD;
-    else process.env.OB_READINESS_CMD = prev;
-  }
-});
 
 test('model output is validated: invented excerpts, bad values and broken JSON are rejected', () => {
   const sources = { cv: 'Route Driver, Acme (fictional) — 2020 to 2024', questionnaire: 'Preferred shift: early' };

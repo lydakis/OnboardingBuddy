@@ -205,6 +205,7 @@ export interface Adapters {
   slack: SlackAdapter;
   llm: LlmAdapter;
   invite: InviteAdapter;
+  classifier?: import('./engine/readiness.ts').ClassifierAdapter;
   /** Tool-using agent inside the NemoClaw/OpenShell sandbox (see src/adapters/sandbox). */
   sandbox?: import('./adapters/sandbox/types.ts').SandboxAgent;
 }

@@ -214,6 +214,20 @@ CREATE TABLE IF NOT EXISTS feature_snapshots (
   PRIMARY KEY (case_id, version)
 );
 
+CREATE TABLE IF NOT EXISTS readiness_predictions (
+  id TEXT PRIMARY KEY,
+  case_id TEXT NOT NULL,
+  snapshot_version INTEGER NOT NULL,
+  snapshot_hash TEXT NOT NULL,
+  model_version TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK (mode IN ('advisory','demo')),
+  status TEXT NOT NULL CHECK (status IN ('ok','unavailable')),
+  output_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (case_id, snapshot_version) REFERENCES feature_snapshots(case_id, version),
+  UNIQUE (case_id, snapshot_version, snapshot_hash, model_version, mode, status)
+);
+
 CREATE TABLE IF NOT EXISTS audit_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   case_id TEXT,

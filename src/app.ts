@@ -10,6 +10,7 @@ import { ManualInviteAdapter } from './adapters/invite/manual.ts';
 import { SlackAdminInviteAdapter } from './adapters/invite/slack-admin.ts';
 import { heuristicResponder } from './engine/extract.ts';
 import { MockSandboxAgent } from './adapters/sandbox/mock.ts';
+import { LocalClassifier } from './adapters/classifier.ts';
 import type { SandboxAgent } from './adapters/sandbox/types.ts';
 import type { EmailAdapter, InviteAdapter, LlmAdapter, SlackAdapter } from './types.ts';
 import './engine/register.ts';
@@ -60,5 +61,6 @@ export async function createApp(config: Config): Promise<App> {
     sandbox = new NemoClawSandboxAgent({ sandbox: config.llm.nemoclawSandbox, timeoutMs: config.llm.timeoutMs });
   }
 
-  return { store, config, adapters: { email, slack, llm, invite, sandbox }, mocks, close: () => db.close() };
+  const classifier = config.classifier.mode === 'off' ? undefined : new LocalClassifier(config.classifier.baseUrl, config.classifier.timeoutMs);
+  return { store, config, adapters: { email, slack, llm, invite, sandbox, classifier }, mocks, close: () => db.close() };
 }

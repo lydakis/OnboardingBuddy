@@ -258,6 +258,10 @@ dependencies = [
     { name = "catboost" },
     { name = "pandas" },
     { name = "scikit-learn" },
+]
+
+[package.optional-dependencies]
+xgboost = [
     { name = "xgboost" },
 ]
 
@@ -266,8 +270,9 @@ requires-dist = [
     { name = "catboost", specifier = ">=1.2.8,<2" },
     { name = "pandas", specifier = ">=2.2,<3" },
     { name = "scikit-learn", specifier = ">=1.6,<2" },
-    { name = "xgboost", specifier = ">=3.0,<4" },
+    { name = "xgboost", marker = "extra == 'xgboost'", specifier = ">=3.0,<4" },
 ]
+provides-extras = ["xgboost"]
 
 [[package]]
 name = "packaging"

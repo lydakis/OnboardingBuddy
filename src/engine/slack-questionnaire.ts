@@ -308,9 +308,11 @@ async function confirmQuestionnaire(ctx: EngineContext, c: CaseRow): Promise<str
   if (c.status === 'questionnaire_complete') return 'Already recorded.';
   if (items(ctx, c.id).some((i) => i.status !== 'answered')) return 'There are still open questions.';
   const { writeFeatureSnapshot } = await import('./features.ts');
-  ctx.store.setStatus(c.id, 'questionnaire_complete');
-  writeFeatureSnapshot(ctx, c.id, 'questionnaire_complete');
-  ctx.store.audit(c.id, 'worker', 'questionnaire_confirmed');
+  ctx.store.transaction(() => {
+    writeFeatureSnapshot(ctx, c.id, 'questionnaire_complete');
+    ctx.store.setStatus(c.id, 'questionnaire_complete');
+    ctx.store.audit(c.id, 'worker', 'questionnaire_confirmed');
+  });
   await postSlack(ctx, { actionKey: `slack:q-done:${c.id}`, caseId: c.id, kind: 'question', channel: c.slack_user_id!, text: "Thanks! I'll put your training plan together with your manager and send it here." });
   // Draft the tailored plan straight away so the manager gets it ready to approve.
   const { proposePlan } = await import('./plan.ts');

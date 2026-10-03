@@ -12,23 +12,9 @@ from catboost import CatBoostClassifier
 from sklearn.dummy import DummyClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score, log_loss
 from sklearn.model_selection import train_test_split
-from xgboost import XGBClassifier
 
-from readiness import CATEGORICAL_COLUMNS, CATEGORIES, LABELS, SCHEMA_VERSION, feature_columns, flatten_snapshot
-
-
-def model_frame(snapshots, kind):
-    frame = pd.DataFrame([flatten_snapshot(s) for s in snapshots], columns=feature_columns())
-    if kind == "xgboost":
-        # Freeze category mappings for future inference, including unseen/missing categories.
-        for column in CATEGORICAL_COLUMNS:
-            levels = (
-                [*CATEGORIES[column], "__unknown__"] if column in CATEGORIES else
-                ["known", "unknown"] if column.endswith("__status") else
-                ["unknown", "cv", "cv_confirmed", "questionnaire"]
-            )
-            frame[column] = pd.Categorical(frame[column], categories=levels)
-    return frame
+from readiness import CATEGORICAL_COLUMNS, LABELS, SCHEMA_VERSION, feature_columns
+from model import model_frame, preprocessor_hash
 
 
 def load_records(path):
@@ -62,6 +48,7 @@ def main():
     parser.add_argument("--data", type=Path, default=Path("artifacts/snapshots.jsonl"))
     parser.add_argument("--out", type=Path, default=Path("artifacts"))
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--models", choices=("catboost", "both"), default="catboost")
     args = parser.parse_args()
     records = load_records(args.data)
     y = np.array([LABELS.index(r["readiness_label"]) for r in records])
@@ -86,7 +73,7 @@ def main():
         "split_sizes": {name: len(ids) for name, ids in split.items()},
         "class_counts": {name: dict(Counter(records[i]["readiness_label"] for i in subset))
                          for name, subset in (("train", train), ("validation", validation), ("test", test))},
-        "versions": {p: importlib.metadata.version(p) for p in ("catboost", "xgboost", "pandas", "scikit-learn")},
+        "versions": {p: importlib.metadata.version(p) for p in ("catboost", "pandas", "scikit-learn")},
         "baseline": metrics(y[test], dummy.predict_proba(np.zeros((len(test), 1)))),
         "models": {},
     }
@@ -94,11 +81,14 @@ def main():
         "catboost": CatBoostClassifier(iterations=400, depth=5, learning_rate=0.05,
                                        loss_function="MultiClass", random_seed=args.seed,
                                        thread_count=4, allow_writing_files=False, verbose=False),
-        "xgboost": XGBClassifier(n_estimators=400, max_depth=4, learning_rate=0.05,
+    }
+    if args.models == "both":
+        from xgboost import XGBClassifier
+        report["versions"]["xgboost"] = importlib.metadata.version("xgboost")
+        models["xgboost"] = XGBClassifier(n_estimators=400, max_depth=4, learning_rate=0.05,
                                  objective="multi:softprob", num_class=3, tree_method="hist",
                                  enable_categorical=True, eval_metric="mlogloss",
-                                 early_stopping_rounds=30, random_state=args.seed, n_jobs=4),
-    }
+                                 early_stopping_rounds=30, random_state=args.seed, n_jobs=4)
     for kind, model in models.items():
         frame = model_frame([r["json"] for r in records], kind)
         if kind == "catboost":
@@ -109,6 +99,13 @@ def main():
             model.fit(frame.iloc[train], y[train], eval_set=[(frame.iloc[validation], y[validation])], verbose=False)
             filename = "xgboost.json"
         model.save_model(str(args.out / filename))
+        artifact_hash = hashlib.sha256((args.out / filename).read_bytes()).hexdigest()
+        manifest = {"schema_version": SCHEMA_VERSION, "model_sha256": artifact_hash,
+                    "preprocessor_sha256": preprocessor_hash(), "synthetic_only": True,
+                    "labels": LABELS, "features": feature_columns(), "kind": kind,
+                    "data_sha256": report["data_sha256"]}
+        manifest["model_version"] = hashlib.sha256((artifact_hash + manifest["preprocessor_sha256"]).encode()).hexdigest()
+        (args.out / f"{kind}-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         validation_prob = model.predict_proba(frame.iloc[validation])
         test_prob = model.predict_proba(frame.iloc[test])
         report["models"][kind] = {

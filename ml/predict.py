@@ -4,10 +4,9 @@ import json
 from pathlib import Path
 
 from catboost import CatBoostClassifier
-from xgboost import XGBClassifier
 
 from readiness import LABELS
-from train import model_frame
+from model import model_frame
 
 
 def main():
@@ -24,7 +23,11 @@ def main():
     snapshot = record.get("json", record)
     if isinstance(snapshot, str):
         snapshot = json.loads(snapshot)
-    model = CatBoostClassifier() if args.model == "catboost" else XGBClassifier()
+    if args.model == "catboost":
+        model = CatBoostClassifier()
+    else:
+        from xgboost import XGBClassifier
+        model = XGBClassifier()
     filename = "catboost.cbm" if args.model == "catboost" else "xgboost.json"
     model.load_model(str(args.artifacts / filename))
     probabilities = model.predict_proba(model_frame([snapshot], args.model))[0]

@@ -3,8 +3,9 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import type { Fact } from './extract.ts';
+import type { ReadinessAssessment } from './readiness.ts';
 
-export type TrackId = 'experienced' | 'foundations';
+export type TrackId = 'experienced' | 'intermediate' | 'foundations';
 
 export interface Policy {
   policyId: string;
@@ -16,6 +17,7 @@ export interface Policy {
   scheduleRule?: string;
   tailoring?: TailoringRule[];
   tailoringRule?: string;
+  classifierReview?: { minProbability: number; minMargin: number };
   tracks: { id: TrackId; label: string; rule: string; minParcelYears: number; requiresLicense: boolean; rampPctByDay: number[] }[];
   modules: {
     id: string;
@@ -23,7 +25,8 @@ export interface Policy {
     hours: number;
     shortHours?: number;
     shortenedByEquipment?: string;
-    appliesTo: 'all' | 'licensed' | 'tailored' | TrackId;
+    appliesTo: 'all' | 'licensed' | 'tailored' | TrackId | TrackId[];
+    hoursByTrack?: Partial<Record<TrackId, number>>;
     day: Partial<Record<TrackId, number>>;
     daysByTrack?: Partial<Record<TrackId, number>>;
     evidence: string;
@@ -45,12 +48,6 @@ export interface Answer {
   field: string;
   value: unknown;
   excerpt: string;
-}
-
-export type ReadinessLabel = 'beginner' | 'okay' | 'expert';
-export interface Readiness {
-  label: ReadinessLabel;
-  confidence: number;
 }
 
 /** A lesson the local model tailored to one worker: intro, situation, and [text, best 0/1, feedback] choices. */
@@ -106,11 +103,10 @@ export interface PlanContent {
   disclaimer: string;
   /** Why this plan differs from the standard track, in manager and worker wording. */
   tailoring?: Tailoring[];
-  /** Advisory readiness estimate from the local model; never changes modules or targets. */
-  readiness?: Readiness;
   /** Per-module lessons tailored to this worker (validated model output; approved with the plan). */
   lessons?: Record<string, Lesson>;
   rideAlongStart?: { shift: string; time: string; rule: string };
+  readiness?: ReadinessAssessment;
 }
 
 export interface PlanInputs {
@@ -121,8 +117,8 @@ export interface PlanInputs {
   licenseExcerpt: string | null;
   injectionExcerpt: string | null;
   preferredShift?: string | null;
-  answers?: Answer[]; // answered questionnaire items, worker's words as excerpt
-  readiness?: Readiness | null;
+  answers?: Answer[]; // confirmed questionnaire snapshot, worker's words as excerpt
+  readiness?: ReadinessAssessment;
   overrides: { track?: TrackId; add: string[]; remove: string[]; resolved: Record<string, string> };
 }
 
@@ -138,7 +134,7 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
   const claimedYears = claimed.length ? Math.max(...claimed.map((x) => Number(x.value))) : 0;
   const cvDeliveryYears = sum([...parcelCv, ...f('other_delivery_years', 'cv')].map((x) => Number(x.value)));
   const licenseFacts = f('license_class');
-  const hasLicense = (input.licenseAnswer !== null && input.licenseAnswer !== 'none') || licenseFacts.some((x) => String(x.value).toLowerCase() !== 'none');
+  const hasLicense = input.licenseAnswer !== null ? input.licenseAnswer !== 'none' : licenseFacts.some((x) => String(x.value).toLowerCase() !== 'none');
   const equipment = new Set(f('equipment').map((x) => String(x.value)));
 
   const reviewItems: ReviewItem[] = [];
@@ -162,11 +158,6 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
   if (input.injectionExcerpt) {
     reviewItems.push({ id: 'instruction-text', blocking: false, text: `The CV contains instruction-like text, which was ignored: "${input.injectionExcerpt}"` });
   }
-  for (const item of reviewItems) {
-    const resolution = input.overrides.resolved[item.id] ?? input.overrides.resolved.all;
-    if (resolution) item.resolution = resolution;
-  }
-
   const missingInfo: string[] = [];
   if (!hasLicense) missingInfo.push("No driver's license on file: vehicle modules are excluded until one is provided.");
   if (licenseFacts.length === 0 && hasLicense) missingInfo.push('License class was not found in the CV; using the questionnaire answer.');
@@ -175,29 +166,49 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
   const experiencedTrack = policy.tracks.find((t) => t.id === 'experienced')!;
   const qualifies = parcelCvYears >= experiencedTrack.minParcelYears && (!experiencedTrack.requiresLicense || hasLicense);
   let trackId: TrackId = qualifies ? 'experienced' : 'foundations';
+  const readiness = input.readiness;
+  if (readiness?.status === 'unavailable') {
+    reviewItems.push({ id: 'classifier-unavailable', blocking: false, text: readiness.error ?? 'Readiness prediction unavailable; using the written policy.' });
+  } else if (readiness?.status === 'ok') {
+    if (readiness.mode === 'demo') trackId = readiness.label === 'expert' ? 'experienced' : readiness.label === 'okay' ? 'intermediate' : 'foundations';
+    const probabilities = Object.values(readiness.probabilities!).sort((a, b) => b - a);
+    const thresholds = policy.classifierReview ?? { minProbability: 0.6, minMargin: 0.15 };
+    if (probabilities[0]! < thresholds.minProbability || probabilities[0]! - probabilities[1]! < thresholds.minMargin) {
+      reviewItems.push({ id: 'classifier-uncertain', blocking: readiness.mode === 'demo', text: 'Readiness recommendation is ambiguous. Review the answers and confirm or revise the training tier. Probabilities are uncalibrated.' });
+    }
+    if (readiness.missing_fields?.length) reviewItems.push({ id: 'classifier-missing-inputs', blocking: readiness.mode === 'demo', text: `Readiness inputs are missing: ${readiness.missing_fields.join(', ')}. Confirm the appropriate tier with a note.` });
+  }
   const overrides: string[] = [];
   if (input.overrides.track && input.overrides.track !== trackId) {
     overrides.push(`Manager set track to ${input.overrides.track} (policy suggested ${trackId}).`);
     trackId = input.overrides.track;
   }
+  if (policy.tracks.find((t) => t.id === trackId)?.requiresLicense && !hasLicense) {
+    overrides.push(`The ${trackId} tier requires a driver's license; using Foundations until one is recorded.`);
+    trackId = 'foundations';
+  }
   const track = policy.tracks.find((t) => t.id === trackId)!;
   const trackEvidence: Evidence[] = [...ev(parcelCv), ...ev(licenseFacts)];
   if (input.licenseExcerpt) trackEvidence.push({ source: 'questionnaire', excerpt: input.licenseExcerpt });
-  const trackReason = `${track.rule} CV parcel/route experience: ${parcelCvYears} year(s); license: ${hasLicense ? 'yes' : 'no'}.`;
+  const trackReason = `${track.rule} ${readiness?.status === 'ok' && readiness.mode === 'demo' ? `Classifier recommended ${readiness.label}; ` : ''}CV parcel/route experience: ${parcelCvYears} year(s); license: ${hasLicense ? 'yes' : 'no'}.`;
 
   const tailoring = matchTailoring(policy, input.answers ?? []);
   const tailoredIn = new Map<string, Tailoring[]>();
   for (const t of tailoring) if (t.module) tailoredIn.set(t.module, [...(tailoredIn.get(t.module) ?? []), t]);
   const fullLength = new Set((policy.tailoring ?? []).filter((r) => r.fullLength && tailoring.some((t) => t.ruleId === r.id)).map((r) => r.fullLength!));
+  const appliesToTrack = (m: Policy['modules'][number]) =>
+    m.appliesTo === 'all' || m.appliesTo === trackId || (Array.isArray(m.appliesTo) && m.appliesTo.includes(trackId)) || (m.appliesTo === 'licensed' && hasLicense);
 
   const modules: PlanModule[] = [];
   for (const m of policy.modules) {
-    const baseApplies =
-      m.appliesTo === 'all' || m.appliesTo === trackId || (m.appliesTo === 'licensed' && hasLicense);
+    const baseApplies = appliesToTrack(m);
     const tailoredBy = baseApplies ? [] : (tailoredIn.get(m.id) ?? []);
     const applies = baseApplies || tailoredBy.length > 0;
     const forcedIn = input.overrides.add.includes(m.id);
-    if ((!applies && !forcedIn) || input.overrides.remove.includes(m.id)) continue;
+    if (m.appliesTo === 'licensed' && !hasLicense) continue;
+    const mandatory = m.appliesTo === 'all' || (m.appliesTo === 'licensed' && hasLicense);
+    if ((!applies && !forcedIn) || (input.overrides.remove.includes(m.id) && !mandatory)) continue;
+    if (input.overrides.remove.includes(m.id) && mandatory) overrides.push(`Ignored removal of mandatory module ${m.id}.`);
     const start = m.day[trackId] ?? 1;
     const count = m.daysByTrack?.[trackId] ?? 1;
     const days = Array.from({ length: count }, (_, i) => start + i);
@@ -208,7 +219,7 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
     modules.push({
       id: m.id,
       title: m.title,
-      hours: shortened && m.shortHours !== undefined ? m.shortHours : m.hours,
+      hours: shortened && m.shortHours !== undefined ? m.shortHours : (m.hoursByTrack?.[trackId] ?? m.hours),
       days,
       evidenceRequired: m.evidence,
       reason: forcedIn && !applies ? 'Added by manager.' : `${m.rule}${shortened ? ' Shortened: prior scanner use found.' : ''}${tailoredBy.length ? ` Tailored: ${tailoredBy.map((t) => t.reason).join(' ')}` : ''}`,
@@ -217,10 +228,10 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
   }
   for (const id of input.overrides.add) if (!policy.modules.some((m) => m.id === id)) overrides.push(`Ignored unknown module ${id}.`);
   for (const id of input.overrides.add) if (policy.modules.some((m) => m.id === id)) overrides.push(`Manager added ${id}.`);
-  for (const id of input.overrides.remove) overrides.push(`Manager removed ${id}.`);
+  for (const id of input.overrides.remove) if (!modules.some((m) => m.id === id)) overrides.push(`Manager removed ${id}.`);
 
   // Only keep tailoring that actually changed this plan (a module already required isn't tailoring).
-  const kept = tailoring.filter((t) => (t.module ? modules.some((m) => m.id === t.module) && !policy.modules.some((m) => m.id === t.module && (m.appliesTo === 'all' || m.appliesTo === trackId)) : modules.length > 0));
+  const kept = tailoring.filter((t) => (t.module ? modules.some((m) => m.id === t.module) && !policy.modules.some((m) => m.id === t.module && appliesToTrack(m)) : modules.length > 0));
   const seen = new Set<string>();
   const tailoringOut = kept.filter((t) => { const k = t.module ?? t.ruleId; if (seen.has(k)) return false; seen.add(k); return true; });
   for (const id of fullLength) {
@@ -229,9 +240,9 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
       reviewItemsInfo(reviewItems, `tailor-${id}`, `${id} kept at full length: ${t.reason}`);
     }
   }
-  if (input.readiness) {
-    const r = input.readiness;
-    const pct = Math.round(r.confidence * 100);
+  if (readiness?.status === 'ok' && readiness.mode === 'advisory') {
+    const r = readiness;
+    const pct = Math.round(r.probabilities![r.label!] * 100);
     if (r.label === 'beginner' && trackId === 'experienced') {
       reviewItemsInfo(reviewItems, 'readiness-mismatch', `Readiness estimate is Beginner (${pct}%) but policy puts them on the Experienced track. Consider track=foundations or extra modules.`);
     } else if (r.label === 'expert' && trackId === 'foundations') {
@@ -242,10 +253,14 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
   const schedule = track.rampPctByDay.map((pct, i) => ({
     day: i + 1,
     modules: modules.filter((m) => m.days.includes(i + 1)).map((m) => m.id),
-    targetPct: pct,
-    targetStops: Math.round((pct / 100) * policy.standardRoute.stopsPerDay),
+    targetPct: hasLicense ? pct : 0,
+    targetStops: hasLicense ? Math.round((pct / 100) * policy.standardRoute.stopsPerDay) : 0,
   }));
 
+  for (const item of reviewItems) {
+    const resolution = input.overrides.resolved[item.id] ?? input.overrides.resolved.all;
+    if (resolution) item.resolution = resolution;
+  }
   return {
     policyId: policy.policyId,
     track: { id: trackId, label: track.label, reason: trackReason, evidence: trackEvidence },
@@ -257,7 +272,7 @@ export function buildPlan(policy: Policy, input: PlanInputs): PlanContent {
     overrides,
     disclaimer: policy.disclaimer,
     tailoring: tailoringOut,
-    ...(input.readiness ? { readiness: { label: input.readiness.label, confidence: input.readiness.confidence } } : {}),
+    ...(readiness ? { readiness } : {}),
     ...(input.preferredShift && policy.shifts?.[input.preferredShift]
       ? { rideAlongStart: { shift: input.preferredShift, time: policy.shifts[input.preferredShift]!, rule: policy.scheduleRule ?? '' } }
       : {}),

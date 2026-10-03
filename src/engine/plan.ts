@@ -6,9 +6,8 @@ import type { Fact } from './extract.ts';
 import { buildPlan, hashPlan, loadPolicy, unresolvedBlocking } from './policy.ts';
 import type { PlanContent, PlanInputs, TrackId } from './policy.ts';
 import { newId, now } from '../db/store.ts';
-import { answeredValue, questionnaireFacts } from './features.ts';
-import { items } from './slack-questionnaire.ts';
-import { predictReadiness } from './readiness.ts';
+import { latestFeatureSnapshot, questionnaireFacts } from './features.ts';
+import { assessReadiness, readinessSummary } from './readiness.ts';
 import { TRAINING_BASE_URL, fitTrainingUrl, trainingPayload } from './training-link.ts';
 import { generateLessons } from './lessons.ts';
 import type { CaseRow, SlackButton } from '../types.ts';
@@ -79,35 +78,44 @@ export async function proposePlan(ctx: EngineContext, c: CaseRow, actor: string,
   if (['intake', 'questionnaire', 'plan_approved', 'plan_sent', 'training', 'training_complete'].includes(c.status)) {
     throw new UserError(c.status === 'questionnaire' ? `${c.worker_name} is still answering the Slack questions.` : `${c.id} is in "${c.status}"; a plan can be proposed after intake and before approval.`);
   }
+  const snapshot = latestFeatureSnapshot(ctx, c.id);
+  if (!snapshot) throw new UserError(`${c.id} needs a confirmed questionnaire before a training plan can be proposed.`);
   const extraction = await extractExperience(ctx, c);
   const sources = sourcesFor(ctx, c);
-  const cvFacts = extraction.facts.filter((f) => f.source === 'cv');
-  const answered = questionnaireFacts(ctx, c.id, cvFacts);
-  const licenseItem = items(ctx, c.id).find((i) => i.field === 'license_class' && i.status === 'answered');
+  const cvFacts: Fact[] = snapshot.data.cv.map((f) => ({ name: f.field, value: f.value, excerpt: f.excerpt, source: 'cv', confidence: f.confidence ?? 'high' }));
+  const answered = questionnaireFacts(ctx, c.id, cvFacts, snapshot.data);
+  const licenseItem = snapshot.data.asked.find((i) => i.field === 'license_class' && i.value !== null);
   const licenseFromAnswer = answered.find((f) => f.name === 'license_class');
+  const readiness = await assessReadiness(ctx, snapshot);
+  const ensureCurrent = () => {
+    const current = ctx.store.getCase(c.id)!;
+    if (['plan_approved', 'plan_sent', 'training', 'training_complete'].includes(current.status)) throw new UserError(`${c.id} is already ${current.status}.`);
+    const currentSnapshot = latestFeatureSnapshot(ctx, c.id);
+    if (currentSnapshot?.version !== snapshot.version || currentSnapshot.json !== snapshot.json) throw new UserError('The confirmed questionnaire changed during drafting; propose the plan again.');
+  };
+  ensureCurrent();
   const previous = latestPlan(ctx, c.id);
   const ov: Overrides = overrides ?? (previous ? planContent(previous).overrideInput : { add: [], remove: [], resolved: {} });
-  const answers = items(ctx, c.id)
-    .filter((i) => i.status === 'answered' && i.answer_value_json)
-    .map((i) => ({ field: i.field, value: JSON.parse(i.answer_value_json!) as unknown, excerpt: i.answer_raw ?? i.excerpt ?? '' }));
-  const readiness = await predictReadiness(ctx, c.id);
+  const answers = snapshot.data.asked.filter((i) => i.value !== null)
+    .map((i) => ({ field: i.field, value: i.value as unknown, excerpt: i.raw ?? i.excerpt ?? '' }));
   const content = buildPlan(loadPolicy(), {
     facts: [...cvFacts, ...answered],
     extractionErrors: extraction.errors,
     extractionFailed: extraction.failed,
     licenseAnswer: licenseFromAnswer ? String(licenseFromAnswer.value) : null,
-    licenseExcerpt: licenseItem?.answer_raw ?? null,
+    licenseExcerpt: licenseItem?.raw ?? null,
     injectionExcerpt: detectInstructionText(sources.cv),
-    preferredShift: (answeredValue(ctx, c.id, 'preferred_shift') as string | undefined) ?? null,
+    preferredShift: snapshot.data.asked.find((i) => i.field === 'preferred_shift')?.value ?? null,
     answers,
     readiness,
     overrides: ov,
   });
   const previousLessons = previous ? planContent(previous).lessons : undefined;
-  const lessons = await generateLessons(ctx, c, content, previousLessons ?? {});
+  const lessons = await generateLessons(ctx, c, content, previousLessons ?? {}, answers);
   if (Object.keys(lessons).length) content.lessons = lessons;
   const stored: StoredPlan = { ...content, overrideInput: ov };
-  const version = (previous?.version ?? 0) + 1;
+  ensureCurrent();
+  const version = (latestPlan(ctx, c.id)?.version ?? 0) + 1;
   const status = unresolvedBlocking(content).length > 0 ? 'needs_review' : 'proposed';
   const id = newId('plan');
   ctx.store.transaction(() => {
@@ -123,7 +131,6 @@ export async function proposePlan(ctx: EngineContext, c: CaseRow, actor: string,
   return row;
 }
 
-const LEVEL: Record<string, string> = { beginner: 'Beginner', okay: 'Some experience', expert: 'Expert' };
 const hrs = (h: number) => (h < 1 ? `${h * 60} min` : `${h}h`);
 
 export function planSummary(c: CaseRow, row: PlanRow): { text: string; buttons: SlackButton[] } {
@@ -133,9 +140,9 @@ export function planSummary(c: CaseRow, row: PlanRow): { text: string; buttons: 
   const lines = [
     `📋 *Training plan v${row.version}* for *${c.worker_name}* (${c.id}) — ${row.status === 'needs_review' ? '⚠️ needs review' : row.status === 'proposed' ? 'ready for your approval' : row.status}`,
     `*Track:* ${p.track.label}. ${p.track.reason}`,
+    ...(readinessSummary(p.readiness) ? [readinessSummary(p.readiness)] : []),
     ...p.track.evidence.slice(0, 3).map((e) => `   ↳ ${e.source}: "${e.excerpt}"`),
   ];
-  if (p.readiness) lines.push(`*Readiness estimate:* ${LEVEL[p.readiness.label]} (${Math.round(p.readiness.confidence * 100)}%) · advisory, from work history and answers only`);
   const tailoredLessons = Object.keys(p.lessons ?? {}).length;
   if (tailoredLessons) lines.push(`*Lessons:* ${tailoredLessons} of ${p.modules.length} written for ${c.worker_name.split(' ')[0]}'s background. Open the preview to read them.`);
   if (tailoring.length) lines.push('*Tailored for them:*', ...tailoring.map((t) => `   • ${t.module ? `${t.module}: ` : ''}${t.reason}${t.evidence[0] && !/^\w+: \d\/5$/.test(t.evidence[0].excerpt) ? ` ↳ "${t.evidence[0].excerpt}"` : ''}`));
@@ -163,6 +170,7 @@ export function workerPlanMessage(ctx: EngineContext, c: CaseRow, row: PlanRow):
   const name = ctx.store.checklist(c.id).find((i) => i.key === 'preferred_name')?.value ?? c.worker_name.split(' ')[0];
   const why: string[] = [];
   if (p.track.id === 'experienced') why.push('Your parcel route experience puts you on the Experienced Courier track: one ride-along day, then a faster ramp.');
+  else if (p.track.id === 'intermediate') why.push('You are starting on the Intermediate Courier track: targeted refreshers and two mentor days before a moderate ramp.');
   else why.push("You're starting on Courier Foundations: three ride-along days with a mentor before your first stops of your own.");
   const scan = p.modules.find((m) => m.id === 'SCAN-120');
   if (scan && scan.hours < 1) why.push("Scanner training is a 30-minute refresher, since you've used a handheld scanner before.");
@@ -273,7 +281,7 @@ function parseOverrides(args: string[], base: Overrides): { overrides: Overrides
     if (!m) { noteParts.push(a); continue; }
     const [, k, v] = m;
     if (k === 'track') {
-      if (v !== 'experienced' && v !== 'foundations') throw new UserError('track must be experienced or foundations');
+      if (v !== 'experienced' && v !== 'intermediate' && v !== 'foundations') throw new UserError('track must be experienced, intermediate or foundations');
       ov.track = v as TrackId;
     } else if (k === 'add') { ov.add.push(v!.toUpperCase()); ov.remove = ov.remove.filter((x) => x !== v!.toUpperCase()); }
     else if (k === 'remove') { ov.remove.push(v!.toUpperCase()); ov.add = ov.add.filter((x) => x !== v!.toUpperCase()); }
@@ -300,6 +308,7 @@ registerCommand('evidence', 'evidence <case> [version]', async (ctx, args) => {
   if (!row) throw new UserError(`${c.id} has no plan yet.`);
   const p = planContent(row);
   const lines = [`🔎 *Evidence for ${c.id} plan v${row.version}* (model: ${ctx.adapters.llm.model})`, `*Track:* ${p.track.reason}`, ...p.track.evidence.map((e) => `   ↳ ${e.source}: "${e.excerpt}"`)];
+  if (readinessSummary(p.readiness)) lines.push(readinessSummary(p.readiness));
   for (const m of p.modules) lines.push(`• *${m.id}* ${m.title}: ${m.reason}`, ...m.evidence.map((e) => `   ↳ ${e.source}: "${e.excerpt}"`));
   lines.push('*Extracted facts:*', ...p.facts.map((f) => `   ${f.name}=${String(f.value)} (${f.source}, ${f.confidence}): "${f.excerpt}"`));
   return { text: lines.join('\n') };
@@ -332,7 +341,7 @@ registerCommand('revise', 'revise <case> [track=..] [add=MOD] [remove=MOD] [reso
   const c = findCase(ctx, args[0]);
   const latest = latestPlan(ctx, c.id);
   if (!latest) throw new UserError(`${c.id} has no plan to revise. Run /onboard plan ${c.id}.`);
-  if (args.length === 1) return { text: `Reply with e.g. \`/onboard revise ${c.id} add=DRV-220 "needs defensive driving"\`. Options: track=experienced|foundations, add=/remove=<module>, resolve=<review id> "what you checked".` };
+  if (args.length === 1) return { text: `Reply with e.g. \`/onboard revise ${c.id} add=DRV-220 "needs defensive driving"\`. Options: track=experienced|intermediate|foundations, add=/remove=<module>, resolve=<review id> "what you checked".` };
   if (latest.status === 'approved' || latest.status === 'sent') throw new UserError(`v${latest.version} is already ${latest.status}.`);
   const { overrides, note } = parseOverrides(args.slice(1), planContent(latest).overrideInput);
   ctx.store.db
